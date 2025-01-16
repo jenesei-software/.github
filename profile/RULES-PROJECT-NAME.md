@@ -3,7 +3,7 @@
 ### ⚛️ **WEB**
 
 Формат: `jenesei-[project-name]-[platform]`  
-`platform` может быть: `web`, `android`, `ios`, `android-ios` и другие.
+- `platform` может быть: `web`, `android`, `ios`, `android-ios` и другие.
 
 **Примеры:**
 - `jenesei-mail-web`
@@ -33,6 +33,13 @@
 
 **Примеры:**
 - `jenesei-ui-react`
+
+### 👓 **Project library**
+
+Формат: `jenesei-[project-name]-[platform]-[other]`  
+- `platform` может быть: `web`, `android`, `ios`, `android-ios` и другие.
+
+**Примеры:**
 - `jenesei-id-web-api`
 
 ---
