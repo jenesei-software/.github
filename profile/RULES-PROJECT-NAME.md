@@ -47,7 +47,8 @@
 ### 🪇 **Back**
 
 Формат: `jenesei-[project-name]-[tech]`  
-- `tech` может быть: `nest`, `express` и другие.
+- `tech` может быть: `nest`, `express`, `back` и другие.
 
 **Пример:**
 - `jenesei-mail-nest`
+- `jenesei-br-back`
