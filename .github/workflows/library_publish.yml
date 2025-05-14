@@ -1,27 +1,6 @@
 name: Library Publish
 
 on:
-  workflow_dispatch:
-    inputs:
-      registry_type:
-        description: 'Registry type (npm, github, all)'
-        required: true
-        default: 'npm'
-        type: choice
-        options:
-          - npm
-          - github
-          - all
-      version_type:
-        description: 'Version bump type (major, minor, patch)'
-        required: true
-        default: 'patch'
-        type: choice
-        options:
-          - major
-          - minor
-          - patch
-
   workflow_call:
     inputs:
       registry_type:
