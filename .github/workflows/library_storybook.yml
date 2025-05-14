@@ -2,6 +2,9 @@ name: Library Storybook
 
 on:
   workflow_call:
+    secrets:
+      ACCESS_GITHUB_TOKEN:
+        required: true
 
 jobs:
   build:
@@ -28,7 +31,7 @@ jobs:
 
       - name: Configure npm for GitHub Packages
         run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
 
       - name: Cache node modules
@@ -53,7 +56,7 @@ jobs:
       - name: Push changes
         uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.ACCESS_GITHUB_TOKEN }}
           publish_branch: build_storybook
           publish_dir: storybook-static
           force_orphan: true
