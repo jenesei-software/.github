@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: "20.x"
 
-      - name: Clean git working directory
+      - name: Clean Git
         run: |
           git reset --hard || echo "No changes to reset"
           git clean -fd || echo "No files to clean"
@@ -33,12 +33,12 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-      - name: Configure npm for GitHub Packages
+      - name: Configure .npmrc for GitHub Packages
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
 
-      - name: Determine version bump type
+      - name: Define version type
         id: version_type
         run: |
           echo "Version type input: ${{ inputs.version_type }}"
@@ -99,15 +99,14 @@ jobs:
 
       - name: Build
         run: |
-          # Извлекаем название ветки
           BRANCH_NAME="${{ github.ref_name }}"
           echo "Building for branch: $BRANCH_NAME"
-          npm run build:$BRANCH_NAME  # Используем название ветки для билда
+          npm run build:$BRANCH_NAME
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-          publish_branch: "build_${{ github.ref_name }}" # Название ветки для публикации
+          publish_branch: "build_${{ github.ref_name }}"
           publish_dir: build
           force_orphan: true

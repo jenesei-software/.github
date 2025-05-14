@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: "20.x"
 
-      - name: Clean git working directory
+      - name: Clean Git
         run: |
           git reset --hard || echo "No changes to reset"
           git clean -fd || echo "No files to clean"
@@ -29,7 +29,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-      - name: Configure npm for GitHub Packages
+      - name: Configure .npmrc for GitHub Packages
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
@@ -53,7 +53,7 @@ jobs:
         run: |
           npm run build:storybook
 
-      - name: Push changes
+      - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.ACCESS_GITHUB_TOKEN }}

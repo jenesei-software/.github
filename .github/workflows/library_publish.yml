@@ -14,7 +14,7 @@ on:
         type: string
     secrets:
       NPM_TOKEN:
-        required: true
+        required: false
       ACCESS_GITHUB_TOKEN:
         required: true
 jobs:
@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: "20.x"
 
-      - name: Clean git working directory
+      - name: Clean Git
         run: |
           git reset --hard || echo "No changes to reset"
           git clean -fd || echo "No files to clean"
@@ -40,7 +40,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-      - name: Determine version bump type
+      - name: Define version type
         id: version_type
         run: |
           echo "Version type input: ${{ inputs.version_type }}"
@@ -92,7 +92,7 @@ jobs:
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" >> ~/.npmrc
 
-      - name: Check if version exists in GitHub Packages
+      - name: Check version in GitHub Packages
         if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
         id: check_version_github
         run: |
@@ -105,11 +105,15 @@ jobs:
           fi
 
       - name: Configure npm for NPM Registry
-        if: github.event.inputs.registry_type == 'npm' || github.event.inputs.registry_type == 'all'
+        if: inputs.registry_type == 'npm' || inputs.registry_type == 'all'
         run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
+          if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
+          else
+            echo "NPM_TOKEN is not set, skipping npm registry configuration."
+          fi
 
-      - name: Check if version exists in NPM
+      - name: Check version exists NPM
         if: github.event.inputs.registry_type == 'npm' || github.event.inputs.registry_type == 'all'
         id: check_version_npm
         run: |
@@ -151,5 +155,10 @@ jobs:
         if: env.publishNPM == 'true'
         run: |
           npm publish --registry=https://registry.npmjs.org/
+           if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
+            npm publish --registry=https://registry.npmjs.org/
+          else
+            echo "NPM_TOKEN is not set, skipping npm registry configuration."
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
