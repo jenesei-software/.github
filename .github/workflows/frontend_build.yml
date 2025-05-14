@@ -30,6 +30,11 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
+      - name: Configure npm for GitHub Packages
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
+          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+
       - name: Determine version bump type
         id: version_type
         run: |
@@ -89,8 +94,6 @@ jobs:
 
           git commit -m "version: $VERSION"
           git tag -a "v$VERSION" -m "version: $VERSION"
-          git push origin HEAD:${{ github.ref_name }}
-          git push origin "v$VERSION"
 
       - name: Cache dependencies
         uses: actions/cache@v4
@@ -119,3 +122,8 @@ jobs:
           publish_branch: "build_${{ github.ref_name }}" # Название ветки для публикации
           publish_dir: build
           force_orphan: true
+
+      - name: Push
+        run: |
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "v$VERSION"
