@@ -81,6 +81,9 @@ jobs:
             echo "Nothing to commit"
           fi
 
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "v$VERSION"
+
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
@@ -108,9 +111,3 @@ jobs:
           publish_branch: "build_${{ github.ref_name }}" # Название ветки для публикации
           publish_dir: build
           force_orphan: true
-
-      - name: Push
-        if: env.VERSION
-        run: |
-          git push origin HEAD:${{ github.ref_name }}
-          git push origin "v$VERSION"

@@ -84,6 +84,9 @@ jobs:
             echo "Nothing to commit"
           fi
 
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "v$VERSION"
+
       - name: Configure npm for GitHub Packages
         if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
         run: |
@@ -150,9 +153,3 @@ jobs:
           npm publish --registry=https://registry.npmjs.org/
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Push
-        if: env.VERSION
-        run: |
-          git push origin HEAD:${{ github.ref_name }}
-          git push origin "v$VERSION"
