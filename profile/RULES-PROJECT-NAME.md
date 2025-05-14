@@ -34,6 +34,8 @@
 **Примеры:**
 - `jenesei-ui-react`
 
+---
+
 ### 👓 **Project library**
 
 Формат: `jenesei-[project-name]-[platform]-[other]`  
