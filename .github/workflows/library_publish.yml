@@ -1,0 +1,201 @@
+name: Library Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      registry_type:
+        description: 'Registry type (npm, github, all)'
+        required: true
+        default: 'npm'
+        type: choice
+        options:
+          - npm
+          - github
+          - all
+      version_type:
+        description: 'Version bump type (major, minor, patch)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+  workflow_call:
+    inputs:
+      registry_type:
+        description: 'npm | github | all'
+        required: true
+        default: 'github'
+        type: string
+      version_type:
+        description: 'major | minor | patch'
+        required: true
+        type: string
+    secrets:
+      NPM_CYRILSTRONE_TOKEN:
+        required: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Clean git working directory
+        run: |
+          git reset --hard || echo "No changes to reset"
+          git clean -fd || echo "No files to clean"
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      - name: Determine version bump type
+        id: version_type
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Using input version type: ${{ github.event.inputs.version_type }}"
+            VERSION_TYPE="${{ github.event.inputs.version_type }}"
+            echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_ENV
+          else
+            echo "Determining version type from commit messages..."
+            LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
+            echo "Last commit message: '$LAST_COMMIT_MSG'"
+            
+            if [[ "$LAST_COMMIT_MSG" =~ major ]]; then
+              echo "VERSION_TYPE=major" >> $GITHUB_ENV
+            elif [[ "$LAST_COMMIT_MSG" =~ minor ]]; then
+              echo "VERSION_TYPE=minor" >> $GITHUB_ENV
+            else
+              echo "VERSION_TYPE=patch" >> $GITHUB_ENV
+            fi
+          fi
+
+          echo "Final VERSION_TYPE: $VERSION_TYPE"
+
+      - name: Bump version
+        run: |
+          if [[ "$VERSION_TYPE" == "major" ]]; then
+            bunx standard-version --release-as major --skip.commit --skip.tag
+          elif [[ "$VERSION_TYPE" == "minor" ]]; then
+            bunx standard-version --release-as minor --skip.commit --skip.tag
+          else
+            bunx standard-version --release-as patch --skip.commit --skip.tag
+          fi
+
+
+          VERSION=$(node -p "require('./package.json').version")
+
+          if grep -q "VITE_APP_VERSION=" .env; then
+            sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$VERSION/" .env
+          else
+            echo "" >> .env
+            echo "VITE_APP_VERSION=$VERSION" >> .env
+          fi
+
+          if [ -f "README.md" ]; then
+            git add README.md
+          fi
+
+          if [ -f "package.json" ]; then
+            git add package.json
+          fi
+
+          if [ -f "CHANGELOG.md" ]; then
+            git add CHANGELOG.md
+          fi
+
+          if [ -f "package-lock.json" ]; then
+            git add package-lock.json
+          fi
+
+          if [ -f "bun.lockb" ]; then
+            git add bun.lockb
+          fi
+
+          if [ -f ".env" ]; then
+            git add .env
+          fi
+
+          git commit -m "version: $VERSION"
+          git tag -a "v$VERSION" -m "version: $VERSION"
+          git push origin alpha
+          git push origin "v$VERSION"
+
+      - name: Configure npm for GitHub Packages
+        if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+
+      - name: Check if version exists in GitHub Packages
+        if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
+        id: check_version_github
+        run: |
+          EXISTING_VERSION=$(npm view @jenesei-software/jenesei-ui-react versions --registry https://npm.pkg.github.com --json | grep ${VERSION} || true)
+          if [ -n "$EXISTING_VERSION" ]; then
+            echo "Version ${VERSION} already exists. Skipping publish."
+            echo "publishGH=false" >> $GITHUB_ENV
+          else
+            echo "publishGH=true" >> $GITHUB_ENV
+          fi
+
+      - name: Configure npm for NPM Registry
+        if: github.event.inputs.registry_type == 'npm' || github.event.inputs.registry_type == 'all'
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_CYRILSTRONE_TOKEN }}" >> ~/.npmrc
+
+      - name: Check if version exists in NPM
+        if: github.event.inputs.registry_type == 'npm' || github.event.inputs.registry_type == 'all'
+        id: check_version_npm
+        run: |
+          EXISTING_VERSION=$(npm view @jenesei-software/jenesei-plugin-vite versions --json | grep ${VERSION} || true)
+          if [ -n "$EXISTING_VERSION" ]; then
+            echo "Version ${VERSION} already exists. Skipping publish."
+            echo "publishNPM=false" >> $GITHUB_ENV
+          else
+            echo "publishNPM=true" >> $GITHUB_ENV
+          fi
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: |
+            r1/${{ runner.os }}/npm/${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            r1/${{ runner.os }}/npm/
+
+      - name: Install dependencies
+        if: env.publishGH == 'true' || env.publishNPM == 'true'
+        run: |
+          npm ci
+
+      - name: Build
+        if: env.publishGH == 'true' || env.publishNPM == 'true'
+        run: |
+          npm run build
+
+      - name: Publish to GitHub Packages
+        if: env.publishGH == 'true'
+        run: |
+          npm publish --registry=https://npm.pkg.github.com/
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to NPM
+        if: env.publishNPM == 'true'
+        run: |
+          npm publish --registry=https://registry.npmjs.org/
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_CYRILSTRONE_TOKEN }}
