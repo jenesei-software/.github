@@ -34,7 +34,7 @@ jobs:
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
 
-      - name: Cache node modules
+      - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: ~/.npm
@@ -43,7 +43,7 @@ jobs:
           restore-keys: |
             r1/${{ runner.os }}/npm/
 
-      - name: Install node modules
+      - name: Install dependencies
         env:
           NPM_CONFIG_USERCONFIG: ~/.npmrc
         run: |
