@@ -15,6 +15,8 @@ on:
     secrets:
       NPM_CYRILSTRONE_TOKEN:
         required: true
+      ACCESS_GITHUB_TOKEN:
+        required: true
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -40,7 +42,7 @@ jobs:
 
       - name: Configure npm for GitHub Packages
         run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
 
       - name: Determine version bump type
@@ -107,7 +109,7 @@ jobs:
       - name: Configure npm for GitHub Packages
         if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
         run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" >> ~/.npmrc
 
       - name: Check if version exists in GitHub Packages
         if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
@@ -162,7 +164,7 @@ jobs:
         run: |
           npm publish --registry=https://npm.pkg.github.com/
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
       - name: Publish to NPM
         if: env.publishNPM == 'true'
