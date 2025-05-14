@@ -1,20 +1,12 @@
-name: Library Publish
+name: Frontend Build
 
 on:
   workflow_call:
     inputs:
-      registry_type:
-        description: 'npm | github | all'
-        required: true
-        default: 'github'
-        type: string
       version_type:
-        description: 'major | minor | patch'
-        required: true
+        description: "major | minor | patch"
+        required: false
         type: string
-    secrets:
-      NPM_CYRILSTRONE_TOKEN:
-        required: true
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: "20.x"
 
       - name: Clean git working directory
         run: |
@@ -58,10 +50,9 @@ jobs:
             npx standard-version --release-as major --skip.commit --skip.tag
           elif [[ "$VERSION_TYPE" == "minor" ]]; then
             npx standard-version --release-as minor --skip.commit --skip.tag
-          else
+          elif [[ "$VERSION_TYPE" == "patch" ]]; then
             npx standard-version --release-as patch --skip.commit --skip.tag
           fi
-
 
           VERSION=$(node -p "require('./package.json').version")
 
@@ -101,41 +92,7 @@ jobs:
           git push origin HEAD:${{ github.ref_name }}
           git push origin "v$VERSION"
 
-      - name: Configure npm for GitHub Packages
-        if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
-        run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
-
-      - name: Check if version exists in GitHub Packages
-        if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
-        id: check_version_github
-        run: |
-          EXISTING_VERSION=$(npm view @jenesei-software/jenesei-ui-react versions --registry https://npm.pkg.github.com --json | grep ${VERSION} || true)
-          if [ -n "$EXISTING_VERSION" ]; then
-            echo "Version ${VERSION} already exists. Skipping publish."
-            echo "publishGH=false" >> $GITHUB_ENV
-          else
-            echo "publishGH=true" >> $GITHUB_ENV
-          fi
-
-      - name: Configure npm for NPM Registry
-        if: github.event.inputs.registry_type == 'npm' || github.event.inputs.registry_type == 'all'
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_CYRILSTRONE_TOKEN }}" >> ~/.npmrc
-
-      - name: Check if version exists in NPM
-        if: github.event.inputs.registry_type == 'npm' || github.event.inputs.registry_type == 'all'
-        id: check_version_npm
-        run: |
-          EXISTING_VERSION=$(npm view @jenesei-software/jenesei-plugin-vite versions --json | grep ${VERSION} || true)
-          if [ -n "$EXISTING_VERSION" ]; then
-            echo "Version ${VERSION} already exists. Skipping publish."
-            echo "publishNPM=false" >> $GITHUB_ENV
-          else
-            echo "publishNPM=true" >> $GITHUB_ENV
-          fi
-
-      - name: Cache node modules
+      - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: ~/.npm
@@ -145,25 +102,20 @@ jobs:
             r1/${{ runner.os }}/npm/
 
       - name: Install dependencies
-        if: env.publishGH == 'true' || env.publishNPM == 'true'
         run: |
           npm ci
 
       - name: Build
-        if: env.publishGH == 'true' || env.publishNPM == 'true'
         run: |
-          npm run build
+          # Извлекаем название ветки
+          BRANCH_NAME="${{ github.ref_name }}"
+          echo "Building for branch: $BRANCH_NAME"
+          npm run build:$BRANCH_NAME  # Используем название ветки для билда
 
-      - name: Publish to GitHub Packages
-        if: env.publishGH == 'true'
-        run: |
-          npm publish --registry=https://npm.pkg.github.com/
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish to NPM
-        if: env.publishNPM == 'true'
-        run: |
-          npm publish --registry=https://registry.npmjs.org/
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_CYRILSTRONE_TOKEN }}
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: "build_${{ github.ref_name }}" # Название ветки для публикации
+          publish_dir: build
+          force_orphan: true
