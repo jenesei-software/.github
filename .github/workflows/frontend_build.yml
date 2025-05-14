@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       version_type:
-        description: "major | minor | patch"
+        description: "major | minor | patch | none"
         required: false
         type: string
     secrets:
