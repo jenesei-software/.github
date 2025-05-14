@@ -80,10 +80,14 @@ jobs:
             echo "VITE_APP_VERSION=$VERSION" >> .env
           fi
 
-          git add README.md package.json CHANGELOG.md package-lock.json bun.lockb .env 2>/dev/null || true
+          git add -u
 
-          git commit -m "version: $VERSION"
-          git tag -a "v$VERSION" -m "version: $VERSION"
+          if ! git diff --cached --quiet; then
+            git commit -m "version: $VERSION"
+            git tag -a "v$VERSION" -m "version: $VERSION"
+          else
+            echo "Nothing to commit"
+          fi
 
       - name: Configure npm for GitHub Packages
         if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
