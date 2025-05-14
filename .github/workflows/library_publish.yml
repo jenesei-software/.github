@@ -4,12 +4,12 @@ on:
   workflow_call:
     inputs:
       registry_type:
-        description: 'npm | github | all'
+        description: "npm | github | all"
         required: true
-        default: 'github'
+        default: "github"
         type: string
       version_type:
-        description: 'major | minor | patch'
+        description: "major | minor | patch"
         required: true
         type: string
     secrets:
@@ -28,7 +28,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: "20.x"
 
       - name: Clean git working directory
         run: |
@@ -71,6 +71,7 @@ jobs:
 
 
           VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
           if grep -q "VITE_APP_VERSION=" .env; then
             sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$VERSION/" .env
@@ -79,29 +80,7 @@ jobs:
             echo "VITE_APP_VERSION=$VERSION" >> .env
           fi
 
-          if [ -f "README.md" ]; then
-            git add README.md
-          fi
-
-          if [ -f "package.json" ]; then
-            git add package.json
-          fi
-
-          if [ -f "CHANGELOG.md" ]; then
-            git add CHANGELOG.md
-          fi
-
-          if [ -f "package-lock.json" ]; then
-            git add package-lock.json
-          fi
-
-          if [ -f "bun.lockb" ]; then
-            git add bun.lockb
-          fi
-
-          if [ -f ".env" ]; then
-            git add .env
-          fi
+          git add README.md package.json CHANGELOG.md package-lock.json bun.lockb .env 2>/dev/null || true
 
           git commit -m "version: $VERSION"
           git tag -a "v$VERSION" -m "version: $VERSION"
@@ -174,6 +153,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_CYRILSTRONE_TOKEN }}
 
       - name: Push
+        if: env.VERSION
         run: |
           git push origin HEAD:${{ github.ref_name }}
           git push origin "v$VERSION"

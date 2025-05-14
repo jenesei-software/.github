@@ -63,6 +63,7 @@ jobs:
           fi
 
           VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
           if grep -q "VITE_APP_VERSION=" .env; then
             sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$VERSION/" .env
@@ -71,29 +72,7 @@ jobs:
             echo "VITE_APP_VERSION=$VERSION" >> .env
           fi
 
-          if [ -f "README.md" ]; then
-            git add README.md
-          fi
-
-          if [ -f "package.json" ]; then
-            git add package.json
-          fi
-
-          if [ -f "CHANGELOG.md" ]; then
-            git add CHANGELOG.md
-          fi
-
-          if [ -f "package-lock.json" ]; then
-            git add package-lock.json
-          fi
-
-          if [ -f "bun.lockb" ]; then
-            git add bun.lockb
-          fi
-
-          if [ -f ".env" ]; then
-            git add .env
-          fi
+          git add README.md package.json CHANGELOG.md package-lock.json bun.lockb .env 2>/dev/null || true
 
           git commit -m "version: $VERSION"
           git tag -a "v$VERSION" -m "version: $VERSION"
@@ -127,6 +106,7 @@ jobs:
           force_orphan: true
 
       - name: Push
+        if: env.VERSION
         run: |
           git push origin HEAD:${{ github.ref_name }}
           git push origin "v$VERSION"
