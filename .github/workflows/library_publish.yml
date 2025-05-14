@@ -66,11 +66,11 @@ jobs:
       - name: Bump version
         run: |
           if [[ "$VERSION_TYPE" == "major" ]]; then
-            bunx standard-version --release-as major --skip.commit --skip.tag
+            npx standard-version --release-as major --skip.commit --skip.tag
           elif [[ "$VERSION_TYPE" == "minor" ]]; then
-            bunx standard-version --release-as minor --skip.commit --skip.tag
+            npx standard-version --release-as minor --skip.commit --skip.tag
           else
-            bunx standard-version --release-as patch --skip.commit --skip.tag
+            npx standard-version --release-as patch --skip.commit --skip.tag
           fi
 
 
