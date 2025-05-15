@@ -84,18 +84,6 @@ jobs:
             echo "VITE_APP_VERSION=$VERSION" >> .env
           fi
 
-          git add -u
-
-          if ! git diff --cached --quiet; then
-            git commit -m "version: $VERSION"
-            git tag -a "v$VERSION" -m "version: $VERSION"
-          else
-            echo "Nothing to commit"
-          fi
-
-          git push origin HEAD:${{ github.ref_name }}
-          git push origin "v$VERSION"
-
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
@@ -146,6 +134,21 @@ jobs:
               bun run build:$BRANCH_NAME
               ;;
           esac
+
+      - name: Push
+        if: env.VERSION_TYPE != 'none'
+        run: |
+          git add -u
+
+          if ! git diff --cached --quiet; then
+            git commit -m "version: $VERSION"
+            git tag -a "v$VERSION" -m "version: $VERSION"
+          else
+            echo "Nothing to commit"
+          fi
+
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "v$VERSION"
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4

@@ -51,6 +51,11 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
+      - name: Read package name
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
+
       - name: Define version type
         id: version_type
         run: |
@@ -86,18 +91,6 @@ jobs:
             echo "VITE_APP_VERSION=$VERSION" >> .env
           fi
 
-          git add -u
-
-          if ! git diff --cached --quiet; then
-            git commit -m "version: $VERSION"
-            git tag -a "v$VERSION" -m "version: $VERSION"
-          else
-            echo "Nothing to commit"
-          fi
-
-          git push origin HEAD:${{ github.ref_name }}
-          git push origin "v$VERSION"
-
       - name: Configure npm for GitHub Packages
         if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
         run: |
@@ -107,7 +100,7 @@ jobs:
         if: github.event.inputs.registry_type == 'github' || github.event.inputs.registry_type == 'all'
         id: check_version_github
         run: |
-          EXISTING_VERSION=$(npm view @jenesei-software/jenesei-ui-react versions --registry https://npm.pkg.github.com --json | grep ${VERSION} || true)
+          EXISTING_VERSION=$(npm view $PACKAGE_NAME versions --registry https://npm.pkg.github.com --json | grep ${VERSION} || true)
           if [ -n "$EXISTING_VERSION" ]; then
             echo "Version ${VERSION} already exists. Skipping publish."
             echo "publishGH=false" >> $GITHUB_ENV
@@ -128,7 +121,7 @@ jobs:
         if: github.event.inputs.registry_type == 'npm' || github.event.inputs.registry_type == 'all'
         id: check_version_npm
         run: |
-          EXISTING_VERSION=$(npm view @jenesei-software/jenesei-plugin-vite versions --json | grep ${VERSION} || true)
+          EXISTING_VERSION=$(npm view $PACKAGE_NAME versions --json | grep ${VERSION} || true)
           if [ -n "$EXISTING_VERSION" ]; then
             echo "Version ${VERSION} already exists. Skipping publish."
             echo "publishNPM=false" >> $GITHUB_ENV
@@ -193,11 +186,25 @@ jobs:
       - name: Publish to NPM
         if: env.publishNPM == 'true'
         run: |
-          npm publish --registry=https://registry.npmjs.org/
-           if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
+          if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
             npm publish --registry=https://registry.npmjs.org/
           else
-            echo "NPM_TOKEN is not set, skipping npm registry configuration."
+            echo "NPM_TOKEN is not set, skipping npm publish."
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Push
+        if: env.VERSION_TYPE != 'none'
+        run: |
+          git add -u
+
+          if ! git diff --cached --quiet; then
+            git commit -m "version: $VERSION"
+            git tag -a "v$VERSION" -m "version: $VERSION"
+          else
+            echo "Nothing to commit"
+          fi
+
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "v$VERSION"
