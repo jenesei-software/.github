@@ -2,6 +2,12 @@ name: Library Storybook
 
 on:
   workflow_call:
+    inputs:
+      package_manager:
+        description: "npm | yarn | bun"
+        required: false
+        default: "npm"
+        type: string
     secrets:
       ACCESS_GITHUB_TOKEN:
         required: true
@@ -18,6 +24,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20.x"
+
+      - name: Setup Bun
+        if: inputs.package_manager == 'bun'
+        run: |
+          curl -fsSL https://bun.sh/install | bash
+          echo "${HOME}/.bun/bin" >> $GITHUB_PATH
 
       - name: Clean Git
         run: |
@@ -37,21 +49,47 @@ jobs:
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.npm
+          path: |
+            ~/.npm
+            ~/.cache/yarn
+            ~/.bun/install/cache
           key: |
-            r1/${{ runner.os }}/npm/${{ hashFiles('**/package-lock.json') }}
+            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb') }}
           restore-keys: |
-            r1/${{ runner.os }}/npm/
+            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/
 
       - name: Install dependencies
-        env:
-          NPM_CONFIG_USERCONFIG: ~/.npmrc
         run: |
-          npm ci
+          case "${{ inputs.package_manager }}" in
+            npm)
+              npm ci
+              ;;
+            yarn)
+              corepack enable
+              yarn install --frozen-lockfile
+              ;;
+            bun)
+              bun install --no-save
+              ;;
+            *)
+              echo "Unknown package manager: ${{ inputs.package_manager }}"
+              exit 1
+              ;;
+          esac
 
       - name: Build
         run: |
-          npm run build:storybook
+          case "${{ inputs.package_manager }}" in
+            npm)
+              npm run build:storybook
+              ;;
+            yarn)
+              yarn build:storybook
+              ;;
+            bun)
+              bun run build:storybook
+              ;;
+          esac
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
