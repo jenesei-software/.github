@@ -59,6 +59,8 @@ jobs:
             r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/
 
       - name: Install dependencies
+        env:
+          NPM_CONFIG_USERCONFIG: ~/.npmrc
         run: |
           case "${{ inputs.package_manager }}" in
             npm)
