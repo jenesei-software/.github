@@ -134,3 +134,32 @@
       secrets:
         ACCESS_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
   ```
+
+### Frontend README VERSIONS ([frontend_readme_versions.yml](../.github/workflows/frontend_readme_versions.yml))
+- Запускается после успешного завершения workflow с именем, начинающимся на `build_`.
+- Клонирует основную ветку репозитория и подтягивает все ветки.
+- Для каждой ветки, соответствующей шаблону `build_*`, определяет имя целевой ветки и версию из её `package.json`.
+- Формирует блок `## 🚀 ACTUAL VERSIONS` с перечислением всех веток и их версий.
+- Обновляет или добавляет этот блок в `README.md` (заменяет старый или добавляет новый).
+- Коммитит и пушит изменения в основную ветку, если были изменения.
+- Пример использования:
+
+  ```yml
+  name: Frontend README Versions Wrapper
+
+  on:
+    workflow_run:
+      types:
+        - completed
+      branches:
+        - 'build_alpha'
+        - 'build_demo'
+        - 'build_prod'
+
+  jobs:
+    call-global-workflow:
+      if: |
+        github.event.workflow_run.conclusion == 'success' &&
+        startsWith(github.event.workflow_run.name, 'build_')
+      uses: jenesei-software/.github/.github/workflows/frontend_readme_versions.yml@main
+  ```
