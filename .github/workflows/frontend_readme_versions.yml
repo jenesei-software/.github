@@ -1,0 +1,62 @@
+name: Frontend README Versions
+
+on:
+  workflow_call:
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.name, 'build_')
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Fetch all branches
+        run: git fetch --all --prune
+
+      - name: Get versions from corresponding branches
+        id: get_versions
+        run: |
+          echo "VERSION_BLOCK=## 🚀 ACTUAL VERSIONS" > $GITHUB_ENV
+          VERSION_BLOCK="## 🚀 ACTUAL VERSIONS"
+
+          for build_branch in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | grep '^origin/build_'); do
+            short_build=${build_branch#origin/}         # build_alpha
+            target_branch=${short_build#build_}          # alpha
+            version=$(git show "origin/$target_branch:package.json" | jq -r .version 2>/dev/null || echo "unknown")
+            VERSION_BLOCK="$VERSION_BLOCK\n- \`\`$target_branch\`\` - \`\`$version\`\`"
+          done
+
+          echo -e "VERSION_BLOCK<<EOF" >> $GITHUB_ENV
+          echo -e "$VERSION_BLOCK" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Update README Version Block
+        run: |
+          if grep -q "## 🚀 ACTUAL VERSIONS" README.md; then
+            sed -i '/## 🚀 ACTUAL VERSIONS/,/^## /{//!d}' README.md 
+            sed -i "s|## 🚀 ACTUAL VERSIONS.*|$VERSION_BLOCK|" README.md
+          else
+            echo -e "$VERSION_BLOCK\n\n$(cat README.md)" > README.md
+          fi
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and push changes
+        run: |
+          git add README.md
+          if ! git diff --cached --quiet; then
+            git commit -m "readme: update versions"
+            git push origin "${{ github.event.repository.default_branch }}"
+          else
+            echo "No changes detected in README.md"
