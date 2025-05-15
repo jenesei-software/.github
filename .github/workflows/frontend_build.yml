@@ -48,8 +48,7 @@ jobs:
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
-          cp .npmrc ~/.npmrc
-
+          if [ -f .npmrc ]; then cp .npmrc ~/.npmrc; fi
       - name: Define version type
         id: version_type
         run: |
