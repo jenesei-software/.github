@@ -30,9 +30,9 @@ jobs:
 
       - name: Setup Bun
         if: inputs.package_manager == 'bun'
-        run: |
-          curl -fsSL https://bun.sh/install | bash
-          echo "${HOME}/.bun/bin" >> $GITHUB_PATH
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Clean Git
         run: |
