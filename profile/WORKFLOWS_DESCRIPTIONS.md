@@ -148,13 +148,11 @@
   name: Frontend README Versions Wrapper
 
   on:
+    workflow_dispatch:
     workflow_run:
+      workflows: ['Frontend Build Wrapper']
       types:
         - completed
-      branches:
-        - 'build_alpha'
-        - 'build_demo'
-        - 'build_prod'
 
   jobs:
     call-global-workflow:
