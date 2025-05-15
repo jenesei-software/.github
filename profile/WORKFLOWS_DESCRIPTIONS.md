@@ -136,7 +136,7 @@
   ```
 
 ### Frontend README VERSIONS ([frontend_readme_versions.yml](../.github/workflows/frontend_readme_versions.yml))
-- Запускается после успешного завершения workflow с именем, начинающимся на `build_`.
+- Запускается после успешного завершения указанного workflow.
 - Клонирует основную ветку репозитория и подтягивает все ветки.
 - Для каждой ветки, соответствующей шаблону `build_*`, определяет имя целевой ветки и версию из её `package.json`.
 - Формирует блок `## 🚀 ACTUAL VERSIONS` с перечислением всех веток и их версий.
@@ -156,8 +156,5 @@
 
   jobs:
     call-global-workflow:
-      if: |
-        github.event.workflow_run.conclusion == 'success' &&
-        startsWith(github.event.workflow_run.name, 'build_')
       uses: jenesei-software/.github/.github/workflows/frontend_readme_versions.yml@main
   ```
