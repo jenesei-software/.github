@@ -37,8 +37,7 @@ jobs:
       - name: Update README Version Block
         run: |
           if grep -q "## 🚀 ACTUAL VERSIONS" README.md; then
-            sed -i '/## 🚀 ACTUAL VERSIONS/,/^## /{//!d}' README.md 
-            sed -i "s|## 🚀 ACTUAL VERSIONS.*|$VERSION_BLOCK|" README.md
+            awk '/## 🚀 ACTUAL VERSIONS/ {print ENVIRON["VERSION_BLOCK"]; skip=1; next} /^## / {skip=0} !skip' README.md > README.tmp && mv README.tmp README.md
           else
             echo -e "$VERSION_BLOCK\n\n$(cat README.md)" > README.md
           fi
