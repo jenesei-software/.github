@@ -149,6 +149,19 @@ jobs:
           git push origin HEAD:${{ github.ref_name }}
           git push origin "v$VERSION"
 
+      - name: Write build info
+        run: |
+          VERSION="${VERSION:-}"
+          COMMIT="$(git rev-parse --short HEAD)"
+          DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          if [ -n "$VERSION" ]; then
+            echo "version: $VERSION" > build/build-info.txt
+          else
+            echo "version:" > build/build-info.txt
+          fi
+          echo "commit: $COMMIT" >> build/build-info.txt
+          echo "date: $DATE" >> build/build-info.txt
+
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
         with:
