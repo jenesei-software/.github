@@ -49,7 +49,7 @@ jobs:
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
           if [ -f .npmrc ]; then cp .npmrc ~/.npmrc; fi
-          
+
       - name: Define version type
         id: version_type
         run: |
@@ -153,12 +153,16 @@ jobs:
       - name: Write build info
         run: |
           VERSION="${VERSION:-}"
+          if [ -z "$VERSION" ]; then
+            # Получить последний тег, начинающийся с v
+            VERSION=$(git tag --list 'v*' --sort=-creatordate | head -n 1 | sed 's/^v//')
+          fi
           COMMIT="$(git rev-parse --short HEAD)"
           DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           if [ -n "$VERSION" ]; then
             echo "version: $VERSION" > build/build-info.txt
           else
-            echo "version:" > build/build-info.txt
+            echo "version: none" > build/build-info.txt
           fi
           echo "commit: $COMMIT" >> build/build-info.txt
           echo "date: $DATE" >> build/build-info.txt
