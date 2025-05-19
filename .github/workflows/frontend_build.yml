@@ -150,6 +150,9 @@ jobs:
           git push origin HEAD:${{ github.ref_name }}
           git push origin "v$VERSION"
 
+      - name: Fetch all tags
+        run: git fetch --tags
+
       - name: Write build info
         run: |
           VERSION="${VERSION:-}"
