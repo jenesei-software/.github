@@ -40,12 +40,18 @@ jobs:
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
-  publish:
+  deploy:
     needs: [setup-build, setup-version, setup-branch]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: artifact-build
+          path: build
 
       - name: Configure Git
         run: |
@@ -65,19 +71,6 @@ jobs:
 
           git push origin HEAD:${{ needs.setup-branch.outputs.branch_name }}
           git push origin "v${{ needs.setup-version.outputs.full_version }}"
-
-  deploy:
-    needs: [setup-build, setup-version, publish, setup-branch]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: artifact-build
-          path: build
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
