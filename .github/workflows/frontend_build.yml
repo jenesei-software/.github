@@ -51,10 +51,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artifact-build
-          path: |
-            package.json
-            .env
-            build
+          path: artifact-build-temp
+
+      - name: Prepare files
+        run: |
+          cp artifact-build-temp/package.json .
+          cp artifact-build-temp/.env .
+          rm -rf build
+          mv artifact-build-temp/build .
+          rm -rf artifact-build-temp
 
       - name: Configure Git
         run: |

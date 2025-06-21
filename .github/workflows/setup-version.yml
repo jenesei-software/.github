@@ -84,11 +84,14 @@ jobs:
         env:
           FULL_VERSION: ${{ env.FULL_VERSION }}
 
-      - name: Upload changed files as artifact
+      - name: Prepare artifact
+        run: |
+          mkdir artifact-version-temp
+          cp package.json .env artifact-version-temp/
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: artifact-version
-          path: |
-            package.json
-            .env
+          path: artifact-version-temp
 

@@ -32,9 +32,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artifact-version
-          path: |
-            package.json
-            .env
+          path: artifact-version-temp
+
+      - name: Copy version files from artifact-version-temp to repo root
+        continue-on-error: true
+        run: |
+          cp artifact-version-temp/package.json .
+          cp artifact-version-temp/.env .
 
       - name: Configure .npmrc for GitHub Packages
         run: |
@@ -114,3 +118,15 @@ jobs:
             package.json
             .env
             build
+
+      - name: Prepare artifact
+        run: |
+          mkdir artifact-build-temp
+          cp package.json .env artifact-build-temp/
+          cp -r build artifact-build-temp/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-build
+          path: artifact-build-temp
