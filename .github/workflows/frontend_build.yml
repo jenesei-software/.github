@@ -58,16 +58,56 @@ jobs:
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
-  setup-dependencies:
+  dependencies:
     needs: [setup-git, setup-version]
-    uses: jenesei-software/.github/.github/workflows/setup-dependencies.yml@main
-    with:
-      package_manager: ${{ inputs.package_manager }}
-    secrets:
-      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+        
+      - name: Configure .npmrc for GitHub Packages
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
+          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+          if [ -f .npmrc ]; then cp .npmrc ~/.npmrc; fi
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/yarn
+            ~/.bun/install/cache
+          key: |
+            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb') }}
+          restore-keys: |
+            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/
+
+      - name: Install dependencies
+        env:
+          BUN_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ~/.npmrc
+        run: |
+          case "${{ inputs.package_manager }}" in
+            npm)
+              npm ci
+              ;;
+            yarn)
+              corepack enable
+              yarn install --frozen-lockfile
+              ;;
+            bun)
+              bun install --no-save
+              ;;
+            *)
+              echo "Unknown package manager: ${{ inputs.package_manager }}"
+              exit 1
+              ;;
+          esac
 
   build:
-    needs: setup-dependencies
+    needs: dependencies
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
