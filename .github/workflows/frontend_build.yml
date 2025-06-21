@@ -44,34 +44,20 @@ jobs:
         with:
           bun-version: latest
 
-  git:
-    needs: [checkout, setup]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
-      - name: Clean Git
-        run: |
-          git reset --hard || echo "No changes to reset"
-          git clean -fd || echo "No files to clean"
+  setup-git:
+    uses: jenesei-software/.github/.github/workflows/setup-git.yml@main
+    secrets:
+      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
-      - name: Configure Git
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+  setup-npmrc:
+    uses: jenesei-software/.github/.github/workflows/setup-npmrc.yml@main
+    secrets:
+      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
-      - name: Configure .npmrc for GitHub Packages
-        run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
-          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
-          if [ -f .npmrc ]; then cp .npmrc ~/.npmrc; fi
-
-      - name: Fetch all tags
-        run: git fetch --tags
 
   version:
-    needs: git
+    needs: setup-git
     runs-on: ubuntu-latest
     outputs:
       full_version: ${{ steps.define.outputs.full_version }}
@@ -143,9 +129,8 @@ jobs:
           echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
           echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
 
-
   dependencies:
-    needs: [git, version]
+    needs: [setup-git, version, setup-npmrc]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

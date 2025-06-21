@@ -1,0 +1,17 @@
+name: Setup npmrc
+
+on:
+  workflow_call:
+    secrets:
+      ACCESS_GITHUB_TOKEN:
+        required: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure .npmrc for GitHub Packages
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
+          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+          if [ -f .npmrc ]; then cp .npmrc ~/.npmrc; fi
