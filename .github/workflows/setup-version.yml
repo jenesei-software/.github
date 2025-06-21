@@ -126,8 +126,8 @@ jobs:
           # If no version bump (version_type=none), no branch or build number added,
           # and tag already exists, then tag did NOT change
           if [ "$VERSION_TYPE" = "none" ] && [ "$ADD_BUILD_NUMBER" = "false" ] && [ "$ADD_BRANCH_NAME" = "false" ] && [ -n "$TAG_EXISTS" ]; then
-            # Output "tag not changed" and false for tag_changed
-            echo "full_version=tag not changed" >> $GITHUB_OUTPUT
+            # Output old tag and false for tag_changed
+            echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
             echo "tag_changed=false" >> $GITHUB_OUTPUT
           else
             # Otherwise, new or changed tag

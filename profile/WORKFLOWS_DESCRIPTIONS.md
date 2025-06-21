@@ -34,13 +34,22 @@
             - npm
             - yarn
             - bun
-
+        add_branch_name:
+          required: false
+          type: boolean
+          default: true
+        add_build_number:
+          required: false
+          type: boolean
+          default: true
   jobs:
     call-publisher:
       uses: jenesei-software/.github/.github/workflows/frontend_build.yml@main
       with:
         version_type: ${{ inputs.version_type }}
         package_manager: ${{ inputs.package_manager }}
+        add_branch_name: ${{ inputs.add_branch_name }}
+        add_build_number: ${{ inputs.add_build_number }}
       secrets:
         ACCESS_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
   ```

@@ -12,6 +12,14 @@ on:
         required: false
         default: "npm"
         type: string
+      add_branch_name:
+        required: false
+        type: boolean
+        default: true
+      add_build_number:
+        required: false
+        type: boolean
+        default: true
     secrets:
       ACCESS_GITHUB_TOKEN:
         required: true
@@ -28,6 +36,8 @@ jobs:
     with:
       version_type: ${{ inputs.version_type }}
       branch_name: ${{ needs.setup-branch.outputs.branch_name }}
+      add_branch_name: true
+      add_build_number: true
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
