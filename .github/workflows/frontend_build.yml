@@ -49,12 +49,13 @@ jobs:
   setup-build:
     uses: jenesei-software/.github/.github/workflows/setup-build.yml@main
     with:
+      full_version: ${{ needs.setup-version.outputs.full_version }}
       package_manager: ${{ inputs.package_manager }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   publish:
-    needs: [build, setup-version]
+    needs: [setup-build, setup-version]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -71,11 +72,17 @@ jobs:
           git push origin "v${{ needs.setup-version.outputs.full_version }}"
 
   deploy:
-    needs: [build, publish, setup-version]
+    needs: [setup-build, setup-version, publish]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: artifact-build
+          path: build
 
       - name: Write build info
         run: |

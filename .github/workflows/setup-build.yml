@@ -7,6 +7,10 @@ on:
         description: "npm | yarn | bun"
         required: true
         type: string
+      full_version:
+        description: "Full version string, e.g., major.minor.patch-branch.build"
+        required: false
+        type: string
     secrets:
       ACCESS_GITHUB_TOKEN:
         required: true
@@ -80,8 +84,16 @@ jobs:
               ;;
           esac
 
+      - name: Write build info
+        run: |
+          COMMIT="$(git rev-parse --short HEAD)"
+          DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          echo "version: ${{ inputs.full_version }}" > build/build-info.txt
+          echo "commit: $COMMIT" >> build/build-info.txt
+          echo "date: $DATE" >> build/build-info.txt
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v3
         with:
-          name: build-artifact
+          name: artifact-build
           path: build
