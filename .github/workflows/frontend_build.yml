@@ -15,14 +15,24 @@ on:
     secrets:
       ACCESS_GITHUB_TOKEN:
         required: true
-jobs:
-  build:
-    runs-on: ubuntu-latest
 
+jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    outputs:
+      branch_name: ${{ steps.get_branch.outputs.branch_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Get branch name
+        id: get_branch
+        run: echo "branch_name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+  setup:
+    needs: checkout
+    runs-on: ubuntu-latest
+    steps:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -33,6 +43,13 @@ jobs:
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
+
+  git:
+    needs: [checkout, setup]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Clean Git
         run: |
@@ -50,39 +67,89 @@ jobs:
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
           if [ -f .npmrc ]; then cp .npmrc ~/.npmrc; fi
 
-      - name: Define version type
-        id: version_type
+      - name: Fetch all tags
+        run: git fetch --tags
+
+  version:
+    needs: git
+    runs-on: ubuntu-latest
+    outputs:
+      full_version: ${{ steps.define.outputs.full_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Define version type and bump version
+        id: define
         run: |
           echo "Version type input: ${{ inputs.version_type }}"
 
           if [[ -n "${{ inputs.version_type }}" ]]; then
             VERSION_TYPE="${{ inputs.version_type }}"
-            echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_ENV
           else
-            echo "No version bump requested. Skipping versioning."
-            echo "VERSION_TYPE=none" >> $GITHUB_ENV
+            VERSION_TYPE="none"
+          fi
+          echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_ENV
+
+          BRANCH_NAME="${{ github.ref_name }}"
+          VERSION=""
+          BUILD=""
+
+          # Извлекаем базовую версию (без build и branch) из package.json, если она там уже в формате full_version
+          PACKAGE_VERSION_RAW=$(node -p "require('./package.json').version")
+          BASE_VERSION=$(echo "$PACKAGE_VERSION_RAW" | sed 's/-.*//')
+
+          if [ "$VERSION_TYPE" != "none" ]; then
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+
+            if [ "$VERSION_TYPE" = "major" ]; then
+              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+            elif [ "$VERSION_TYPE" = "minor" ]; then
+              MINOR=$((MINOR + 1)); PATCH=0
+            elif [ "$VERSION_TYPE" = "patch" ]; then
+              PATCH=$((PATCH + 1))
+            fi
+
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            BUILD=1
+          else
+            VERSION="$BASE_VERSION"
+
+            # Если нет тегов — устанавливаем начальную версию
+            if [ -z "$VERSION" ]; then
+              VERSION="0.0.0"
+            fi
+
+            # Считаем номер билда для этой версии и ветки
+            BUILD=$(git tag | grep "^v$VERSION-$BRANCH_NAME\." | wc -l)
+            BUILD=$((BUILD + 1))
           fi
 
-      - name: Bump version
-        if: env.VERSION_TYPE != 'none'
-        run: |
-          if [[ "$VERSION_TYPE" == "major" ]]; then
-            npx standard-version --release-as major --skip.commit --skip.tag
-          elif [[ "$VERSION_TYPE" == "minor" ]]; then
-            npx standard-version --release-as minor --skip.commit --skip.tag
-          elif [[ "$VERSION_TYPE" == "patch" ]]; then
-            npx standard-version --release-as patch --skip.commit --skip.tag
+          FULL_VERSION="$VERSION-$BRANCH_NAME.$BUILD"
+
+          # Обновляем package.json.version
+          node -e "let p=require('./package.json'); p.version='$FULL_VERSION'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
+
+          # Обновляем .env
+          touch .env
+          if grep -q "^VITE_APP_VERSION=" .env; then
+            sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$FULL_VERSION/" .env
+          else
+            echo "VITE_APP_VERSION=$FULL_VERSION" >> .env
           fi
 
-          VERSION=$(node -p "require('./package.json').version")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "BUILD=$BUILD" >> $GITHUB_ENV
+          echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
+          echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
 
-          if grep -q "VITE_APP_VERSION=" .env; then
-            sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$VERSION/" .env
-          else
-            echo "" >> .env
-            echo "VITE_APP_VERSION=$VERSION" >> .env
-          fi
+
+  dependencies:
+    needs: [git, version]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Cache dependencies
         uses: actions/cache@v4
@@ -118,7 +185,14 @@ jobs:
               ;;
           esac
 
-      - name: Build
+  build:
+    needs: dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build project
         run: |
           BRANCH_NAME="${{ github.ref_name }}"
           echo "Building for branch: $BRANCH_NAME"
@@ -135,42 +209,39 @@ jobs:
               ;;
           esac
 
-      - name: Push
-        if: env.VERSION_TYPE != 'none'
+  publish:
+    needs: [build, version]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Push version and tag
         run: |
           git add -u
-
           if ! git diff --cached --quiet; then
-            git commit -m "version: $VERSION"
-            git tag -a "v$VERSION" -m "version: $VERSION"
-          else
-            echo "Nothing to commit"
+            git commit -m "version: ${{ needs.version.outputs.full_version }}"
           fi
-
+          git tag -a "v${{ needs.version.outputs.full_version }}" -m "version: ${{ needs.version.outputs.full_version }}"
           git push origin HEAD:${{ github.ref_name }}
-          git push origin "v$VERSION"
+          git push origin "v${{ needs.version.outputs.full_version }}"
 
-      - name: Fetch all tags
-        run: git fetch --tags
+  deploy:
+    needs: [build, publish, version]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Write build info
         run: |
-          VERSION="${VERSION:-}"
-          if [ -z "$VERSION" ]; then
-            # Получить последний тег, начинающийся с v
-            VERSION=$(git tag --list 'v*' --sort=-creatordate | head -n 1 | sed 's/^v//')
-          fi
           COMMIT="$(git rev-parse --short HEAD)"
           DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          if [ -n "$VERSION" ]; then
-            echo "version: $VERSION" > build/build-info.txt
-          else
-            echo "version: none" > build/build-info.txt
-          fi
+          echo "version: ${{ needs.version.outputs.full_version }}" > build/build-info.txt
           echo "commit: $COMMIT" >> build/build-info.txt
           echo "date: $DATE" >> build/build-info.txt
 
-      - name: Deploy
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.ACCESS_GITHUB_TOKEN }}
