@@ -70,30 +70,3 @@ jobs:
 
           echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
           echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
-
-      - name: Write version to package.json and .env
-        run: |
-          node -e "let p=require('./package.json'); p.version=process.env.FULL_VERSION; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
-
-          touch .env
-          if grep -q "^VITE_APP_VERSION=" .env; then
-            sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$FULL_VERSION/" .env
-          else
-            echo "VITE_APP_VERSION=$FULL_VERSION" >> .env
-          fi
-        env:
-          FULL_VERSION: ${{ env.FULL_VERSION }}
-
-      - name: Prepare artifact
-        run: |
-          ls -la
-          mkdir artifact-version-temp
-          cp package.json .env artifact-version-temp/
-          ls -la artifact-version-temp
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-version
-          path: artifact-version-temp
-

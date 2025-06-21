@@ -51,20 +51,23 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artifact-build
-          path: artifact-build-temp
-
-      - name: Prepare files
-        run: |
-          cp artifact-build-temp/package.json .
-          cp artifact-build-temp/.env .
-          rm -rf build
-          mv artifact-build-temp/build .
-          rm -rf artifact-build-temp
+          path: build
 
       - name: Configure Git
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+
+      - name: Write version to package.json and .env
+        run: |
+          node -e "let p=require('./package.json'); p.version=${{ needs.setup-version.outputs.full_version }}; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
+
+          touch .env
+          if grep -q "^VITE_APP_VERSION=" .env; then
+            sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=${{ needs.setup-version.outputs.full_version }}/" .env
+          else
+            echo "VITE_APP_VERSION=${{ needs.setup-version.outputs.full_version }}" >> .env
+          fi
 
       - name: Push
         run: |
