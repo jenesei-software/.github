@@ -86,8 +86,10 @@ jobs:
 
       - name: Prepare artifact
         run: |
+          ls -la
           mkdir artifact-version-temp
           cp package.json .env artifact-version-temp/
+          ls -la artifact-version-temp
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
