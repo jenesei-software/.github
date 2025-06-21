@@ -17,19 +17,13 @@ on:
         required: true
 
 jobs:
-  checkout:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
   setup-git:
     uses: jenesei-software/.github/.github/workflows/setup-git.yml@main
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   setup-version:
-    needs: [setup-git, checkout]
+    needs: [setup-git]
     uses: jenesei-software/.github/.github/workflows/setup-version.yml@main
     with:
       version_type: ${{ inputs.version_type }}
@@ -53,18 +47,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Push version and tag
+      - name: Push
         run: |
           git add -u
+
           if ! git diff --cached --quiet; then
             git commit -m "version: ${{ needs.setup-version.outputs.full_version }}"
           fi
+
+          # Создаем тег всегда, даже если коммита не было
           git tag -a "v${{ needs.setup-version.outputs.full_version }}" -m "version: ${{ needs.setup-version.outputs.full_version }}"
+
           git push origin HEAD:${{ needs.setup-git.outputs.branch_name }}
           git push origin "v${{ needs.setup-version.outputs.full_version }}"
 
   deploy:
-    needs: [setup-build, setup-version, publish]
+    needs: [setup-build, setup-version, publish, setup-git]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -80,6 +78,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-          publish_branch: "build_${{ github.ref_name }}"
+          publish_branch: "build_${{ needs.setup-git.outputs.branch_name }}"
           publish_dir: build
           force_orphan: true
