@@ -7,7 +7,7 @@ on:
         required: true
 
 jobs:
-  setup:
+  setup-npmrc:
     runs-on: ubuntu-latest
     steps:
       - name: Configure .npmrc for GitHub Packages

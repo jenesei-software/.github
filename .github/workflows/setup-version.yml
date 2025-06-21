@@ -15,10 +15,10 @@ on:
     outputs:
       full_version:
         description: "Full version including build"
-        value: ${{ jobs.setup.outputs.full_version }}
+        value: ${{ jobs.setup-version.outputs.full_version }}
 
 jobs:
-  setup:
+  setup-version:
     runs-on: ubuntu-latest
     outputs:
       full_version: ${{ steps.define.outputs.full_version }}
