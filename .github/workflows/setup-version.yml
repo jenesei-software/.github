@@ -1,0 +1,78 @@
+name: Setup Version
+
+on:
+  workflow_call:
+    inputs:
+      version_type:
+        required: false
+        type: string
+      branch_name:
+        required: false
+        type: string
+    secrets:
+      ACCESS_GITHUB_TOKEN:
+        required: true
+    outputs:
+      full_version:
+        description: "Full version including build"
+        value: ${{ jobs.setup.outputs.full_version }}
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      full_version: ${{ steps.define.outputs.full_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Define version type and bump version
+        id: define
+        run: |
+          echo "Version type input: ${{ inputs.version_type }}"
+
+          if [[ -n "${{ inputs.version_type }}" ]]; then
+            VERSION_TYPE="${{ inputs.version_type }}"
+          else
+            VERSION_TYPE="none"
+          fi
+          echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_ENV
+
+          BRANCH_NAME="${{ inputs.branch_name || github.ref_name }}"
+          VERSION=""
+          BUILD=""
+
+          PACKAGE_VERSION_RAW=$(node -p "require('./package.json').version")
+          BASE_VERSION=$(echo "$PACKAGE_VERSION_RAW" | sed 's/-.*//')
+
+          if [ "$VERSION_TYPE" != "none" ]; then
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+            if [ "$VERSION_TYPE" = "major" ]; then
+              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+            elif [ "$VERSION_TYPE" = "minor" ]; then
+              MINOR=$((MINOR + 1)); PATCH=0
+            elif [ "$VERSION_TYPE" = "patch" ]; then
+              PATCH=$((PATCH + 1))
+            fi
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            BUILD=1
+          else
+            VERSION="$BASE_VERSION"
+            if [ -z "$VERSION" ]; then VERSION="0.0.0"; fi
+            BUILD=$(git tag | grep "^v$VERSION-$BRANCH_NAME\." | wc -l)
+            BUILD=$((BUILD + 1))
+          fi
+
+          FULL_VERSION="$VERSION-$BRANCH_NAME.$BUILD"
+
+          node -e "let p=require('./package.json'); p.version='$FULL_VERSION'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
+
+          touch .env
+          if grep -q "^VITE_APP_VERSION=" .env; then
+            sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$FULL_VERSION/" .env
+          else
+            echo "VITE_APP_VERSION=$FULL_VERSION" >> .env
+          fi
+
+          echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
+          echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
