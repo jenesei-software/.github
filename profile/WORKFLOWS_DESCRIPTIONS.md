@@ -35,10 +35,12 @@
             - yarn
             - bun
         add_branch_name:
+          description: 'Add branch name to version'
           required: false
           type: boolean
           default: true
         add_build_number:
+          description: 'Add build number to version'
           required: false
           type: boolean
           default: true
