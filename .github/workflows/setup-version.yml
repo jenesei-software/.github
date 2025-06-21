@@ -3,41 +3,69 @@ name: Setup Version
 on:
   workflow_call:
     inputs:
+      # Version type to bump: major, minor, patch, or none (empty)
       version_type:
         required: false
         type: string
+      # Branch name, defaults to github.ref_name if not provided
       branch_name:
         required: false
         type: string
+      # Whether to add branch name to the version string (default: true)
+      add_branch_name:
+        required: false
+        type: boolean
+        default: true
+      # Whether to add build number to the version string (default: true)
+      add_build_number:
+        required: false
+        type: boolean
+        default: true
     secrets:
+      # GitHub access token required for git commands
       ACCESS_GITHUB_TOKEN:
         required: true
     outputs:
+      # Full version string including build and branch or "tag not changed"
       full_version:
-        description: "Full version including build"
+        description: "Full version including build or 'tag not changed'"
         value: ${{ jobs.setup-version.outputs.full_version }}
+      # Flag indicating if the tag was changed (true/false)
+      tag_changed:
+        description: "Whether the tag was changed or not"
+        value: ${{ jobs.setup-version.outputs.tag_changed }}
 
 jobs:
   setup-version:
     runs-on: ubuntu-latest
     outputs:
+      # Pass outputs from the 'define' step
       full_version: ${{ steps.define.outputs.full_version }}
+      tag_changed: ${{ steps.define.outputs.tag_changed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        # Checkout repository to access files and git history
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20.x"
+        # Setup Node.js environment to run node commands
+
       - name: Fetch all tags
         run: git fetch --tags
+        # Fetch all git tags from remote to check existing versions
 
       - name: Define version type and bump version
         id: define
         run: |
+          # Log input parameters for debugging
           echo "Version type input: ${{ inputs.version_type }}"
+          echo "Add branch name: ${{ inputs.add_branch_name }}"
+          echo "Add build number: ${{ inputs.add_build_number }}"
 
+          # Determine version bump type (major, minor, patch or none)
           if [[ -n "${{ inputs.version_type }}" ]]; then
             VERSION_TYPE="${{ inputs.version_type }}"
           else
@@ -45,13 +73,19 @@ jobs:
           fi
           echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_ENV
 
+          # Get branch name either from input or from github context
           BRANCH_NAME="${{ inputs.branch_name || github.ref_name }}"
-          VERSION=""
-          BUILD=""
+          ADD_BRANCH_NAME="${{ inputs.add_branch_name }}"
+          ADD_BUILD_NUMBER="${{ inputs.add_build_number }}"
 
+          # Read current version from package.json and remove any pre-release suffix (e.g., -beta)
           PACKAGE_VERSION_RAW=$(node -p "require('./package.json').version")
           BASE_VERSION=$(echo "$PACKAGE_VERSION_RAW" | sed 's/-.*//')
 
+          VERSION="$BASE_VERSION"
+          BUILD=""
+
+          # If bump type is specified, calculate new version accordingly
           if [ "$VERSION_TYPE" != "none" ]; then
             IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
             if [ "$VERSION_TYPE" = "major" ]; then
@@ -64,13 +98,39 @@ jobs:
             VERSION="${MAJOR}.${MINOR}.${PATCH}"
             BUILD=1
           else
-            VERSION="$BASE_VERSION"
+            # If no version specified, default to 0.0.0
             if [ -z "$VERSION" ]; then VERSION="0.0.0"; fi
-            BUILD=$(git tag | grep "^v$VERSION-$BRANCH_NAME\." | wc -l)
-            BUILD=$((BUILD + 1))
+
+            # If build number is enabled, count existing tags for this version and branch, then increment
+            if [ "$ADD_BUILD_NUMBER" = "true" ]; then
+              BUILD=$(git tag | grep "^v$VERSION-$BRANCH_NAME\." | wc -l)
+              BUILD=$((BUILD + 1))
+            fi
           fi
 
-          FULL_VERSION="$VERSION-$BRANCH_NAME.$BUILD"
+          # Construct the full version string depending on flags
+          FULL_VERSION="$VERSION"
+          if [ "$ADD_BRANCH_NAME" = "true" ]; then
+            FULL_VERSION="${FULL_VERSION}-$BRANCH_NAME"
+          fi
+          if [ "$ADD_BUILD_NUMBER" = "true" ]; then
+            # Default build to 1 if empty
+            if [ -z "$BUILD" ]; then BUILD=1; fi
+            FULL_VERSION="${FULL_VERSION}.$BUILD"
+          fi
 
-          echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
-          echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
+          # Check if tag with this version already exists (with 'v' prefix)
+          TAG_EXISTS=$(git tag -l "v$FULL_VERSION")
+
+          # Determine if tag changed:
+          # If no version bump (version_type=none), no branch or build number added,
+          # and tag already exists, then tag did NOT change
+          if [ "$VERSION_TYPE" = "none" ] && [ "$ADD_BUILD_NUMBER" = "false" ] && [ "$ADD_BRANCH_NAME" = "false" ] && [ -n "$TAG_EXISTS" ]; then
+            # Output "tag not changed" and false for tag_changed
+            echo "full_version=tag not changed" >> $GITHUB_OUTPUT
+            echo "tag_changed=false" >> $GITHUB_OUTPUT
+          else
+            # Otherwise, new or changed tag
+            echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
+            echo "tag_changed=true" >> $GITHUB_OUTPUT
+          fi
