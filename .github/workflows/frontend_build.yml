@@ -19,17 +19,11 @@ on:
 jobs:
   checkout:
     runs-on: ubuntu-latest
-    outputs:
-      branch_name: ${{ steps.get_branch.outputs.branch_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get branch name
-        id: get_branch
-        run: echo "branch_name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-
-  setup:
+  node:
     needs: checkout
     runs-on: ubuntu-latest
     steps:
@@ -38,97 +32,26 @@ jobs:
         with:
           node-version: "20.x"
 
-      - name: Setup Bun
-        if: inputs.package_manager == 'bun'
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
   setup-git:
     uses: jenesei-software/.github/.github/workflows/setup-git.yml@main
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   setup-version:
-    needs: checkout
+    needs: [setup-git, checkout]
     uses: jenesei-software/.github/.github/workflows/setup-version.yml@main
     with:
       version_type: ${{ inputs.version_type }}
-      branch_name: ${{ needs.checkout.outputs.branch_name }}
+      branch_name: ${{ needs.setup-git.outputs.branch_name }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
-  dependencies:
-    needs: [setup-git, setup-version]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-        
-      - name: Configure .npmrc for GitHub Packages
-        run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
-          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
-          if [ -f .npmrc ]; then cp .npmrc ~/.npmrc; fi
-
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            ~/.cache/yarn
-            ~/.bun/install/cache
-          key: |
-            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb') }}
-          restore-keys: |
-            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/
-
-      - name: Install dependencies
-        env:
-          BUN_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-          NPM_CONFIG_USERCONFIG: ~/.npmrc
-        run: |
-          case "${{ inputs.package_manager }}" in
-            npm)
-              npm ci
-              ;;
-            yarn)
-              corepack enable
-              yarn install --frozen-lockfile
-              ;;
-            bun)
-              bun install --no-save
-              ;;
-            *)
-              echo "Unknown package manager: ${{ inputs.package_manager }}"
-              exit 1
-              ;;
-          esac
-
-  build:
-    needs: dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Build project
-        run: |
-          BRANCH_NAME="${{ github.ref_name }}"
-          echo "Building for branch: $BRANCH_NAME"
-
-          case "${{ inputs.package_manager }}" in
-            npm)
-              npm run build:$BRANCH_NAME
-              ;;
-            yarn)
-              yarn build:$BRANCH_NAME
-              ;;
-            bun)
-              bun run build:$BRANCH_NAME
-              ;;
-          esac
+  setup-build:
+    uses: jenesei-software/.github/.github/workflows/setup-build.yml@main
+    with:
+      package_manager: ${{ inputs.package_manager }}
+    secrets:
+      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   publish:
     needs: [build, setup-version]

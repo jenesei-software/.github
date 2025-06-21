@@ -1,0 +1,87 @@
+name: Setup Build
+
+on:
+  workflow_call:
+    inputs:
+      package_manager:
+        description: "npm | yarn | bun"
+        required: true
+        type: string
+    secrets:
+      ACCESS_GITHUB_TOKEN:
+        required: true
+
+jobs:
+  dependencies-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure .npmrc for GitHub Packages
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
+          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+          if [ -f .npmrc ]; then cp .npmrc ~/.npmrc; fi
+
+      - name: Setup Bun
+        if: inputs.package_manager == 'bun'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/yarn
+            ~/.bun/install/cache
+          key: |
+            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb') }}
+          restore-keys: |
+            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/
+
+      - name: Install dependencies
+        env:
+          BUN_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ~/.npmrc
+        run: |
+          case "${{ inputs.package_manager }}" in
+            npm)
+              npm ci
+              ;;
+            yarn)
+              corepack enable
+              yarn install --frozen-lockfile
+              ;;
+            bun)
+              bun install --no-save
+              ;;
+            *)
+              echo "Unknown package manager: ${{ inputs.package_manager }}"
+              exit 1
+              ;;
+          esac
+
+      - name: Build project
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          echo "Building for branch: $BRANCH_NAME"
+          case "${{ inputs.package_manager }}" in
+            npm)
+              npm run build:$BRANCH_NAME
+              ;;
+            yarn)
+              yarn build:$BRANCH_NAME
+              ;;
+            bun)
+              bun run build:$BRANCH_NAME
+              ;;
+          esac
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifact
+          path: build
