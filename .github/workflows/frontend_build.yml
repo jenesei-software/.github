@@ -67,7 +67,7 @@ jobs:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   build:
-    needs: dependencies
+    needs: setup-dependencies
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
