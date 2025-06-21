@@ -82,7 +82,7 @@ jobs:
           FULL_VERSION: ${{ env.FULL_VERSION }}
 
       - name: Upload changed files as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: artifact-version
           path: |
