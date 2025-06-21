@@ -27,7 +27,7 @@ jobs:
     uses: jenesei-software/.github/.github/workflows/setup-version.yml@main
     with:
       version_type: ${{ inputs.version_type }}
-      branch_name: ${{ needs.setup-git.outputs.branch_name }}
+      branch_name: ${{ needs.setup-branch.outputs.branch_name }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
