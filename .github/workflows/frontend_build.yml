@@ -47,6 +47,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
@@ -60,10 +65,10 @@ jobs:
 
       - name: Write version to package.json and .env
         run: |
-          node -e "let p=require('./package.json'); p.version=${{ needs.setup-version.outputs.full_version }}; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
+          node -e "let p=require('./package.json'); p.version='${{ needs.setup-version.outputs.full_version }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
 
           touch .env
-          if grep -q "^VITE_APP_VERSION=" .env; then
+          if grep -q '^VITE_APP_VERSION=' .env; then
             sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=${{ needs.setup-version.outputs.full_version }}/" .env
           else
             echo "VITE_APP_VERSION=${{ needs.setup-version.outputs.full_version }}" >> .env
