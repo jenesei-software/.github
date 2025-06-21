@@ -110,15 +110,6 @@ jobs:
           echo "commit: $COMMIT" >> build/build-info.txt
           echo "date: $DATE" >> build/build-info.txt
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-build
-          path: |
-            package.json
-            .env
-            build
-
       - name: Prepare artifact
         run: |
           mkdir artifact-build-temp
