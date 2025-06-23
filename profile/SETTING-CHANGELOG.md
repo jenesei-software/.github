@@ -4,7 +4,7 @@ npm install --save-dev standard-version
 # 2. Добавь в package.json скрипт
 ```json
   "scripts": {
-    "release": "standard-version --skip.tag --skip.commit"
+    "release": "standard-version --skip.tag --skip.commit --skip.bump"
   }
 ```
 # 3. Запуск
