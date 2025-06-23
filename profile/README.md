@@ -6,4 +6,3 @@
 - [Описание глобальных Workflows](./WORKFLOWS_DESCRIPTIONS.md).
 - [Настройка changelog](./SETTING-CHANGELOG.md).
 - [Настройка commitizen](./SETTING-HUSKY.md).
-- [Настройка husky](./WORKFLOWS_DESCRIPTIONS.md).
