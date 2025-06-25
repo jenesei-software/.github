@@ -5,5 +5,4 @@
 - [Настройка приватных пакетов](./SETTING-PRIVATE-PACKAGE.md).
 - [Описание глобальных Workflows](./WORKFLOWS_DESCRIPTIONS.md).
 - [Настройка changelog](./SETTING-CHANGELOG.md).
-- [Настройка commitizen](./SETTING-HUSKY.md).
-- [Настройка husky](./WORKFLOWS_DESCRIPTIONS.md).
+- [Настройка commitizen](./SETTING-COMMITIZEN.md).
