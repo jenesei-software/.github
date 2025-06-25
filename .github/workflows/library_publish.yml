@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       package_manager:
-        description: "npm | yarn | bun"
+        description: "npm | yarn | bun | pnpm"
         required: false
         default: "npm"
         type: string
@@ -136,8 +136,9 @@ jobs:
             ~/.npm
             ~/.cache/yarn
             ~/.bun/install/cache
+            ~/.pnpm-store
           key: |
-            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb') }}
+            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb', '**/pnpm-lock.yaml') }}
           restore-keys: |
             r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/
 
@@ -154,6 +155,9 @@ jobs:
               ;;
             bun)
               bun install --no-save
+              ;;
+            pnpm)
+              pnpm install --frozen-lockfile
               ;;
             *)
               echo "Unknown package manager: ${{ inputs.package_manager }}"
@@ -173,6 +177,9 @@ jobs:
               ;;
             bun)
               bun run build
+              ;;
+            pnpm)
+              pnpm run build
               ;;
           esac
 
