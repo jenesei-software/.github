@@ -33,9 +33,6 @@ jobs:
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
           if [ -f .npmrc ]; then cat .npmrc >> ~/.npmrc; fi
 
-      - name: Configure npm for GitHub Packages
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" >> ~/.npmrc
-
       - name: Setup pnpm
         if: inputs.package_manager == 'pnpm'
         run: |
