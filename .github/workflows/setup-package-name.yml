@@ -8,10 +8,10 @@ on:
     outputs:
       package_name:
         description: "Package name used in the workflow"
-        value: ${{ jobs.setup-branch.outputs.package_name }}
+        value: ${{ jobs.setup-package-name.outputs.package_name }}
 
 jobs:
-  setup-branch:
+  setup-package-name:
     runs-on: ubuntu-latest
     outputs:
       package_name: ${{ steps.define.outputs.package_name }}
