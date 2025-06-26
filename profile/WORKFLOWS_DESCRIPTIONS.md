@@ -47,7 +47,7 @@
           default: true
   jobs:
     call-publisher:
-      uses: jenesei-software/.github/.github/workflows/frontend_build.yml@main
+      uses: jenesei-software/.github/.github/workflows/deploy_frontend.yml@main
       with:
         version_type: ${{ inputs.version_type }}
         package_manager: ${{ inputs.package_manager }}
@@ -104,7 +104,7 @@
 
   jobs:
     call-publisher:
-      uses: jenesei-software/.github/.github/workflows/library_publish.yml@main
+      uses: jenesei-software/.github/.github/workflows/deploy_library.yml@main
       with:
         registry_type: ${{ inputs.registry_type }}
         version_type: ${{ inputs.version_type }}
