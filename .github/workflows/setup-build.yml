@@ -31,9 +31,9 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
         run: |
-            echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" > ~/.npmrc
-            echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
-            if [ -f .npmrc ]; then cat .npmrc >> ~/.npmrc; fi
+          echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" > ~/.npmrc
+          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+          if [ -f .npmrc ]; then cat .npmrc >> ~/.npmrc; fi
 
       - name: Setup pnpm
         if: inputs.package_manager == 'pnpm'
@@ -86,13 +86,15 @@ jobs:
               ;;
           esac
 
-      - name: Write version to .env
+      - name: Write version to package.json and .env
         run: |
+          node -e "let p=require('./package.json'); p.version='${{ inputs.full_version }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
+
           touch .env
-          if grep -q "^VITE_APP_VERSION=" .env; then
+          if grep -q '^VITE_APP_VERSION=' .env; then
             sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=${{ inputs.full_version }}/" .env
           else
-            echo "VITE_APP_VERSION=${{ inputs.full_version }}" >> .env
+            echo "VITE_APP_VERSION=${{ inputs.full_version }}}" >> .env
           fi
 
       - name: Build project
