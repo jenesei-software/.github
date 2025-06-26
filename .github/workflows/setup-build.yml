@@ -31,7 +31,7 @@ jobs:
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
-          if [ -f .npmrc ]; then cp .npmrc ~/.npmrc; fi
+          if [ -f .npmrc ]; then cat .npmrc >> ~/.npmrc; fi
 
       - name: Setup pnpm
         if: inputs.package_manager == 'pnpm'
@@ -60,7 +60,7 @@ jobs:
       - name: Install dependencies
         env:
           BUN_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
           NPM_CONFIG_USERCONFIG: ~/.npmrc
         run: |
           case "${{ inputs.package_manager }}" in
