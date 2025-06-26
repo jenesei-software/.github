@@ -80,9 +80,8 @@
           type: choice
           options:
             - npm
-            - yarn
-            - bun
-            - pnpm
+            - github
+            - all
         version_type:
           description: "Version bump"
           required: true
