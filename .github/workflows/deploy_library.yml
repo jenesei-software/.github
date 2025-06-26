@@ -96,6 +96,12 @@ jobs:
             echo "PUBLISH_NPM=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: artifact-build
+          path: build
+
       - name: Publish to GitHub Packages
         if: steps.check_github.outputs.PUBLISH_GH == 'true'
         run: npm publish --registry=https://npm.pkg.github.com/
