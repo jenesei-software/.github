@@ -29,6 +29,11 @@ jobs:
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
+  setup-package-name:
+    uses: jenesei-software/.github/.github/workflows/setup-package-name.yml@main
+    secrets:
+      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+
   setup-version:
     needs: setup-branch
     uses: jenesei-software/.github/.github/workflows/setup-version.yml@main
@@ -48,18 +53,15 @@ jobs:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   publish:
-    needs: [setup-build, setup-version, setup-branch]
+    needs: [setup-build, setup-version, setup-branch, setup-package-name]
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.setup-version.outputs.full_version }}
       REGISTRY_TYPE: ${{ inputs.registry_type }}
+      PACKAGE_NAME: ${{ needs.setup-package-name.outputs.package_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Read package name
-        id: read_package
-        run: echo "PACKAGE_NAME=$(node -p \"require('./package.json').name\")" >> $GITHUB_ENV
 
       - name: Configure npm for GitHub Packages
         if: env.REGISTRY_TYPE == 'github' || env.REGISTRY_TYPE == 'all'
@@ -76,7 +78,7 @@ jobs:
         id: check_github
         if: env.REGISTRY_TYPE == 'github' || env.REGISTRY_TYPE == 'all'
         run: |
-          EXISTS=$(npm view $PACKAGE_NAME versions --registry https://npm.pkg.github.com --json | grep $VERSION || true)
+          EXISTS=$(npm view env.PACKAGE_NAME versions --registry https://npm.pkg.github.com --json | grep $VERSION || true)
           if [ -z "$EXISTS" ]; then
             echo "PUBLISH_GH=true" >> $GITHUB_OUTPUT
           else
@@ -87,7 +89,7 @@ jobs:
         id: check_npm
         if: env.REGISTRY_TYPE == 'npm' || env.REGISTRY_TYPE == 'all'
         run: |
-          EXISTS=$(npm view $PACKAGE_NAME versions --json | grep $VERSION || true)
+          EXISTS=$(npm view env.PACKAGE_NAME versions --json | grep $VERSION || true)
           if [ -z "$EXISTS" ]; then
             echo "PUBLISH_NPM=true" >> $GITHUB_OUTPUT
           else
