@@ -38,6 +38,14 @@ jobs:
         run: |
           npm install -g pnpm
 
+      - name: Setup pnpm for GitHub Packages
+        if: inputs.package_manager == 'pnpm'
+        env:
+          NPM_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+        run: |
+          pnpm config set //npm.pkg.github.com/:_authToken "${NPM_TOKEN}"
+          pnpm config set @jenesei-software:registry https://npm.pkg.github.com/
+
       - name: Setup Bun
         if: inputs.package_manager == 'bun'
         uses: oven-sh/setup-bun@v1
