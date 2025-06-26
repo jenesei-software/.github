@@ -97,16 +97,16 @@ jobs:
           echo "Building for branch: $BRANCH_NAME"
           case "${{ inputs.package_manager }}" in
             npm)
-              npm run build
+              npm run build:$BRANCH_NAME
               ;;
             yarn)
-              yarn build
+              yarn build:$BRANCH_NAME
               ;;
             bun)
-              bun run build
+              bun run build:$BRANCH_NAME
               ;;
             pnpm)
-              pnpm run build
+              pnpm run build:$BRANCH_NAME
               ;;
           esac
 
