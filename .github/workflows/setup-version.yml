@@ -15,12 +15,12 @@ on:
       add_branch_name:
         required: false
         type: boolean
-        default: true
+        default: false
       # Whether to add build number to the version string (default: true)
       add_build_number:
         required: false
         type: boolean
-        default: true
+        default: false
     secrets:
       # GitHub access token required for git commands
       ACCESS_GITHUB_TOKEN:
