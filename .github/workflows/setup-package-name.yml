@@ -21,4 +21,6 @@ jobs:
 
       - name: Get package name
         id: define
-        run: echo "package_name=$(node -p \"require('./package.json').name\")" >> $GITHUB_OUTPUT
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          echo "package_name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
