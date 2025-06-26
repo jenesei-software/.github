@@ -31,9 +31,10 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
         run: |
-          echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" > ~/.npmrc
-          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
-          if [ -f .npmrc ]; then cat .npmrc >> ~/.npmrc; fi
+            echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" > ~/.npmrc
+            echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+            echo "always-auth=true" >> ~/.npmrc
+            if [ -f .npmrc ]; then cat .npmrc >> ~/.npmrc; fi
 
       - name: Setup pnpm
         if: inputs.package_manager == 'pnpm'
@@ -41,13 +42,14 @@ jobs:
         with:
           version: latest
 
-      - name: Configure pnpm for GitHub Packages
+      - name: Setup pnpm for GitHub Packages
         if: inputs.package_manager == 'pnpm'
         env:
           NPM_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
         run: |
           pnpm config set //npm.pkg.github.com/:_authToken "$NPM_TOKEN"
           pnpm config set @jenesei-software:registry https://npm.pkg.github.com/
+          pnpm config set //npm.pkg.github.com/:always-auth true
 
       - name: Setup Bun
         if: inputs.package_manager == 'bun'
