@@ -100,6 +100,7 @@
             - npm
             - yarn
             - bun
+            - pnpm
 
   jobs:
     call-publisher:
