@@ -1,0 +1,24 @@
+name: Setup Package Name
+
+on:
+  workflow_call:
+    secrets:
+      ACCESS_GITHUB_TOKEN:
+        required: true
+    outputs:
+      package_name:
+        description: "Package name used in the workflow"
+        value: ${{ jobs.setup-branch.outputs.package_name }}
+
+jobs:
+  setup-branch:
+    runs-on: ubuntu-latest
+    outputs:
+      package_name: ${{ steps.define.outputs.package_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get package name
+        id: define
+        run: echo "package_name=$(node -p \"require('./package.json').name\")" >> $GITHUB_OUTPUT

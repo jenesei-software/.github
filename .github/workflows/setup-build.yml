@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       package_manager:
-        description: "npm | yarn | bun"
+        description: "npm | yarn | bun | pnpm"
         required: true
         type: string
       full_version:
@@ -27,11 +27,16 @@ jobs:
         with:
           node-version: "20.x"
 
-      - name: Configure .npmrc for GitHub Packages
+      - name: Setup npmrc for GitHub Packages
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
           if [ -f .npmrc ]; then cp .npmrc ~/.npmrc; fi
+
+      - name: Setup pnpm
+        if: inputs.package_manager == 'pnpm'
+        run: |
+          npm install -g pnpm
 
       - name: Setup Bun
         if: inputs.package_manager == 'bun'
@@ -46,8 +51,9 @@ jobs:
             ~/.npm
             ~/.cache/yarn
             ~/.bun/install/cache
+            ~/.pnpm-store
           key: |
-            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb') }}
+            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb', '**/pnpm-lock.yaml') }}
           restore-keys: |
             r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/
 
@@ -66,6 +72,9 @@ jobs:
               ;;
             bun)
               bun install --no-save
+              ;;
+            pnpm)
+              pnpm install --frozen-lockfile
               ;;
             *)
               echo "Unknown package manager: ${{ inputs.package_manager }}"
@@ -88,13 +97,16 @@ jobs:
           echo "Building for branch: $BRANCH_NAME"
           case "${{ inputs.package_manager }}" in
             npm)
-              npm run build:$BRANCH_NAME
+              npm run build
               ;;
             yarn)
-              yarn build:$BRANCH_NAME
+              yarn build
               ;;
             bun)
-              bun run build:$BRANCH_NAME
+              bun run build
+              ;;
+            pnpm)
+              pnpm run build
               ;;
           esac
 
