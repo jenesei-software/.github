@@ -102,6 +102,17 @@ jobs:
           name: artifact-build
           path: build
 
+      - name: Write version to package.json and .env
+        run: |
+          node -e "let p=require('./package.json'); p.version='$VERSION'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
+
+          touch .env
+          if grep -q '^VITE_APP_VERSION=' .env; then
+            sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$VERSION/" .env
+          else
+            echo "VITE_APP_VERSION=$VERSION}" >> .env
+          fi
+
       - name: Publish to GitHub Packages
         if: steps.check_github.outputs.PUBLISH_GH == 'true'
         run: npm publish --registry=https://npm.pkg.github.com/
