@@ -79,7 +79,7 @@ jobs:
           if grep -q '^VITE_APP_VERSION=' .env; then
             sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$VERSION/" .env
           else
-            echo "VITE_APP_VERSION=$VERSION}" >> .env
+            echo "VITE_APP_VERSION=$VERSION" >> .env
           fi
 
       - name: Git Commit & Push Tag
@@ -98,6 +98,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-          publish_branch: "build_$BRANCH_NAME"
+          publish_branch: build_${{ env.BRANCH_NAME }}
           publish_dir: build
           force_orphan: true
