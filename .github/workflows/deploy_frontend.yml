@@ -99,20 +99,6 @@ jobs:
           git push origin HEAD:$BRANCH_NAME
           git push origin "v$VERSION"
 
-      - name: Push
-        run: |
-          git add -u
-
-          if ! git diff --cached --quiet; then
-            git commit -m "version: $VERSION"
-          fi
-
-          # Создаем тег всегда, даже если коммита не было
-          git tag -a "v$VERSION" -m "version: $VERSION"
-
-          git push origin HEAD:$BRANCH_NAME
-          git push origin "v$VERSION"
-
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
