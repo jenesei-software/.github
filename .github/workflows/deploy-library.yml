@@ -1,4 +1,4 @@
-name: Library Publish
+name: deploy-library
 
 on:
   workflow_call:

@@ -1,6 +1,6 @@
 ## Описание глобальных Workflows
 
-### Deploy Frontend ([deploy_frontend.yml](../.github/workflows/deploy_frontend.yml))
+### Deploy Frontend ([deploy-frontend.yml](../.github/workflows/deploy-frontend.yml))
 
 - Автоматическая сборка фронтенд-проекта.
 - Выполняет клонирование репозитория, установку зависимостей, сборку проекта для текущей ветки и деплой в отдельную ветку (`build_<branch>`).
@@ -10,7 +10,7 @@
 - Пример использования:
 
   ```yml
-  name: Deploy Frontend Wrapper
+  name: deploy-frontend
 
   on:
     workflow_dispatch:
@@ -47,7 +47,7 @@
           default: true
   jobs:
     call-publisher:
-      uses: jenesei-software/.github/.github/workflows/deploy_frontend.yml@main
+      uses: jenesei-software/.github/.github/workflows/deploy-frontend.yml@main
       with:
         version_type: ${{ inputs.version_type }}
         package_manager: ${{ inputs.package_manager }}
@@ -59,7 +59,7 @@
 
 ---
 
-### Deploy Library ([deploy_library.yml](../.github/workflows/deploy_library.yml))
+### Deploy Library ([deploy-library.yml](../.github/workflows/deploy-library.yml))
 
 - Публикация npm-библиотеки в выбранный реестр: GitHub Packages, npm или оба сразу.
 - Выполняет автоматический bump версии, пушит теги и коммиты, проверяет наличие версии в реестрах и публикует пакет только если версия ещё не опубликована.
@@ -68,7 +68,7 @@
 - Пример использования:
 
   ```yml
-  name: Deploy Library Wrapper
+  name: deploy-library
 
   on:
     workflow_dispatch:
@@ -104,7 +104,7 @@
 
   jobs:
     call-publisher:
-      uses: jenesei-software/.github/.github/workflows/deploy_library.yml@main
+      uses: jenesei-software/.github/.github/workflows/deploy-library.yml@main
       with:
         registry_type: ${{ inputs.registry_type }}
         version_type: ${{ inputs.version_type }}

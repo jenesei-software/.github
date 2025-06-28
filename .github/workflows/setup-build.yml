@@ -1,4 +1,4 @@
-name: Setup Build
+name: setup-build
 
 on:
   workflow_call:

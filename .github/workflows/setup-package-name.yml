@@ -1,4 +1,4 @@
-name: Setup Package Name
+name: setup-package-name
 
 on:
   workflow_call:

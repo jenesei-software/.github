@@ -1,4 +1,4 @@
-name: Frontend README Versions
+name: setup-readme-versions
 
 on:
   workflow_call:
