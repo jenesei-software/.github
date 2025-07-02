@@ -1,6 +1,6 @@
 ## Описание глобальных Workflows
 
-### Deploy Frontend ([deploy-frontend.yml](../.github/workflows/deploy-frontend.yml))
+### Deploy Node ([deploy-node.yml](../.github/workflows/deploy-node.yml))
 
 - Автоматическая сборка фронтенд-проекта.
 - Выполняет клонирование репозитория, установку зависимостей, сборку проекта для текущей ветки и деплой в отдельную ветку (`build_<branch>`).
@@ -10,7 +10,7 @@
 - Пример использования:
 
   ```yml
-  name: deploy-frontend
+  name: deploy-node
 
   on:
     workflow_dispatch:
@@ -47,7 +47,7 @@
           default: true
   jobs:
     call-publisher:
-      uses: jenesei-software/.github/.github/workflows/deploy-frontend.yml@main
+      uses: jenesei-software/.github/.github/workflows/deploy-node.yml@main
       with:
         version_type: ${{ inputs.version_type }}
         package_manager: ${{ inputs.package_manager }}
