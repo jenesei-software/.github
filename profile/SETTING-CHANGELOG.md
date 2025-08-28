@@ -1,4 +1,4 @@
-# 1. Установить standard-version
+# 1. Установить conventional-changelog-cli
 npm install -g conventional-changelog-cli
 
 # 2. Добавь в package.json скрипт
