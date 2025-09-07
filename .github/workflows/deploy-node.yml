@@ -3,6 +3,16 @@ name: deploy-node
 on:
   workflow_call:
     inputs:
+      build_folder:
+        description: "Build output folder"
+        required: false
+        default: "build"
+        type: string
+      env_property:
+        description: "Environment property to set version in .env file, e.g., VITE_APP_VERSION"
+        required: false
+        default: "VITE_APP_VERSION"
+        type: string
       version_type:
         description: "major | minor | patch | none"
         required: false
@@ -25,37 +35,34 @@ on:
         required: true
 
 jobs:
-  setup-branch:
-    uses: jenesei-software/.github/.github/workflows/setup-branch.yml@main
-    secrets:
-      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-
   setup-version:
-    needs: [setup-branch]
     uses: jenesei-software/.github/.github/workflows/setup-version.yml@main
     with:
       version_type: ${{ inputs.version_type }}
-      branch_name: ${{ needs.setup-branch.outputs.branch_name }}
+      branch_name: ${{ github.ref_name }}
       add_branch_name: ${{ inputs.add_branch_name }}
       add_build_number: ${{ inputs.add_build_number }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   setup-build:
-    needs: [setup-branch, setup-version]
+    needs: [setup-version]
     uses: jenesei-software/.github/.github/workflows/setup-build.yml@main
     with:
       full_version: ${{ needs.setup-version.outputs.full_version }}
       package_manager: ${{ inputs.package_manager }}
+      env_property: ${{ inputs.env_property }}
+      build_folder: ${{ inputs.build_folder }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   deploy:
-    needs: [setup-build, setup-version, setup-branch]
+    needs: [setup-build, setup-version]
     runs-on: ubuntu-latest
     env:
-      VERSION: ${{ needs.setup-version.outputs.full_version }}
-      BRANCH_NAME: ${{ needs.setup-branch.outputs.branch_name }}
+      FULL_VERSION: ${{ needs.setup-version.outputs.full_version }}
+      BRANCH_NAME: ${{ github.ref_name }}
+      ENV_PROPERTY: ${{ inputs.env_property }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -73,13 +80,13 @@ jobs:
 
       - name: Write version to package.json and .env
         run: |
-          node -e "let p=require('./package.json'); p.version='$VERSION'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
+          node -e "let p=require('./package.json'); p.version='${{ env.FULL_VERSION }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
 
           touch .env
-          if grep -q '^VITE_APP_VERSION=' .env; then
-            sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$VERSION/" .env
+          if grep -q '^${{ env.ENV_PROPERTY }}=' .env; then
+            sed -i "s/^${{ env.ENV_PROPERTY }}=.*/${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}/" .env
           else
-            echo "VITE_APP_VERSION=$VERSION" >> .env
+            echo "${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}" >> .env
           fi
 
       - name: Git Commit & Push Tag
@@ -88,11 +95,11 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m "version: $VERSION"
+            git commit -m "version: ${{ env.FULL_VERSION }}"
           fi
-          git tag -a "v$VERSION" -m "version: $VERSION"
-          git push origin HEAD:$BRANCH_NAME
-          git push origin "v$VERSION"
+          git tag -a "v${{ env.FULL_VERSION }}" -m "version: ${{ env.FULL_VERSION }}"
+          git push origin HEAD:${{ env.BRANCH_NAME }}
+          git push origin "v${{ env.FULL_VERSION }}"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

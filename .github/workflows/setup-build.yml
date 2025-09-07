@@ -3,6 +3,11 @@ name: setup-build
 on:
   workflow_call:
     inputs:
+      env_property:
+        description: "Environment property to set version in .env file, e.g., VITE_APP_VERSION"
+        default: "VITE_APP_VERSION"
+        required: false
+        type: string
       package_manager:
         description: "npm | yarn | bun | pnpm"
         required: true
@@ -11,6 +16,11 @@ on:
         description: "Full version string, e.g., major.minor.patch-branch.build"
         required: false
         type: string
+      build_folder:
+        description: "Build output folder"
+        required: false
+        default: "build"
+        type: string
     secrets:
       ACCESS_GITHUB_TOKEN:
         required: true
@@ -18,6 +28,12 @@ on:
 jobs:
   setup-build:
     runs-on: ubuntu-latest
+    env:
+      FULL_VERSION: ${{ inputs.full_version }}
+      PACKAGE_MANAGER: ${{ inputs.package_manager }}
+      ENV_PROPERTY: ${{ inputs.env_property }}
+      BUILD_FOLDER: ${{ inputs.build_folder }}
+      BRANCH_NAME: ${{ github.ref_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,20 +44,18 @@ jobs:
           node-version: "20.x"
 
       - name: Setup npmrc for GitHub Packages
-        env:
-          NPM_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
         run: |
-          echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" > .npmrc
-          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
+          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
 
       - name: Setup pnpm
-        if: inputs.package_manager == 'pnpm'
+        if: env.PACKAGE_MANAGER == 'pnpm'
         uses: pnpm/action-setup@v4
         with:
           version: latest
 
       - name: Setup Bun
-        if: inputs.package_manager == 'bun'
+        if: env.PACKAGE_MANAGER == 'bun'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
@@ -55,9 +69,9 @@ jobs:
             ~/.bun/install/cache
             ~/.pnpm-store
           key: |
-            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb', '**/pnpm-lock.yaml') }}
+            r1/${{ runner.os }}/${{ env.PACKAGE_MANAGER }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb', '**/pnpm-lock.yaml') }}
           restore-keys: |
-            r1/${{ runner.os }}/${{ inputs.package_manager }}/deps/
+            r1/${{ runner.os }}/${{ env.PACKAGE_MANAGER }}/deps/
 
       - name: Install dependencies
         env:
@@ -66,7 +80,7 @@ jobs:
           NPM_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
           NPM_CONFIG_USERCONFIG: ~/.npmrc
         run: |
-          case "${{ inputs.package_manager }}" in
+          case "${{ env.PACKAGE_MANAGER }}" in
             npm)
               npm ci
               ;;
@@ -81,38 +95,37 @@ jobs:
               pnpm install --frozen-lockfile
               ;;
             *)
-              echo "Unknown package manager: ${{ inputs.package_manager }}"
+              echo "Unknown package manager: ${{ env.PACKAGE_MANAGER }}"
               exit 1
               ;;
           esac
 
       - name: Write version to package.json and .env
         run: |
-          node -e "let p=require('./package.json'); p.version='${{ inputs.full_version }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
+          node -e "let p=require('./package.json'); p.version='${{ env.FULL_VERSION }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
 
           touch .env
-          if grep -q '^VITE_APP_VERSION=' .env; then
-            sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=${{ inputs.full_version }}/" .env
+          if grep -q '^${{ env.ENV_PROPERTY }}=' .env; then
+            sed -i "s/^${{ env.ENV_PROPERTY }}=.*/${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}/" .env
           else
-            echo "VITE_APP_VERSION=${{ inputs.full_version }}}" >> .env
+            echo "${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}" >> .env
           fi
 
       - name: Build project
         run: |
-          BRANCH_NAME="${{ github.ref_name }}"
-          echo "Building for branch: $BRANCH_NAME"
-          case "${{ inputs.package_manager }}" in
+          echo "Building for branch: ${{ env.BRANCH_NAME }}"
+          case "${{ env.PACKAGE_MANAGER }}" in
             npm)
-              npm run build:$BRANCH_NAME
+              npm run build:${{ env.BRANCH_NAME }}
               ;;
             yarn)
-              yarn build:$BRANCH_NAME
+              yarn build:${{ env.BRANCH_NAME }}
               ;;
             bun)
-              bun run build:$BRANCH_NAME
+              bun run build:${{ env.BRANCH_NAME }}
               ;;
             pnpm)
-              pnpm run build:$BRANCH_NAME
+              pnpm run build:${{ env.BRANCH_NAME }}
               ;;
           esac
 
@@ -120,9 +133,9 @@ jobs:
         run: |
           COMMIT="$(git rev-parse --short HEAD)"
           DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          echo "version: ${{ inputs.full_version }}" > build/build-info.txt
-          echo "commit: $COMMIT" >> build/build-info.txt
-          echo "date: $DATE" >> build/build-info.txt
+          echo "version: ${{ env.FULL_VERSION }}" > ${{ env.BUILD_FOLDER }}/build-info.txt
+          echo "commit: $COMMIT" >> ${{ env.BUILD_FOLDER }}/build-info.txt
+          echo "date: $DATE" >> ${{ env.BUILD_FOLDER }}/build-info.txt
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

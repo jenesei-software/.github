@@ -3,6 +3,16 @@ name: deploy-library
 on:
   workflow_call:
     inputs:
+      build_folder:
+        description: "Build output folder"
+        required: false
+        default: "build"
+        type: string
+      env_property:
+        description: "Environment property to set version in .env file, e.g., VITE_APP_VERSION"
+        default: "VITE_APP_VERSION"
+        required: false
+        type: string
       registry_type:
         description: "npm | github | all"
         required: true
@@ -24,41 +34,39 @@ on:
         required: true
 
 jobs:
-  setup-branch:
-    uses: jenesei-software/.github/.github/workflows/setup-branch.yml@main
-    secrets:
-      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-
   setup-package-name:
     uses: jenesei-software/.github/.github/workflows/setup-package-name.yml@main
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   setup-version:
-    needs: setup-branch
     uses: jenesei-software/.github/.github/workflows/setup-version.yml@main
     with:
       version_type: ${{ inputs.version_type }}
-      branch_name: ${{ needs.setup-branch.outputs.branch_name }}
+      branch_name: ${{ github.ref_name }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   setup-build:
-    needs: [setup-branch, setup-version]
+    needs: [setup-version]
     uses: jenesei-software/.github/.github/workflows/setup-build.yml@main
     with:
       full_version: ${{ needs.setup-version.outputs.full_version }}
       package_manager: ${{ inputs.package_manager }}
+      env_property: ${{ inputs.env_property }}
+      build_folder: ${{ inputs.build_folder }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   publish:
-    needs: [setup-build, setup-version, setup-branch, setup-package-name]
+    needs: [setup-build, setup-version, setup-package-name]
     runs-on: ubuntu-latest
     env:
-      VERSION: ${{ needs.setup-version.outputs.full_version }}
-      REGISTRY_TYPE: ${{ inputs.registry_type }}
+      FULL_VERSION: ${{ needs.setup-version.outputs.full_version }}
       PACKAGE_NAME: ${{ needs.setup-package-name.outputs.package_name }}
+      REGISTRY_TYPE: ${{ inputs.registry_type }}
+      ENV_PROPERTY: ${{ inputs.env_property }}
+      BRANCH_NAME: ${{ github.ref_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -78,7 +86,7 @@ jobs:
         id: check_github
         if: env.REGISTRY_TYPE == 'github' || env.REGISTRY_TYPE == 'all'
         run: |
-          EXISTS=$(npm view $PACKAGE_NAME versions --registry https://npm.pkg.github.com --json | grep $VERSION || true)
+          EXISTS=$(npm view ${{ env.PACKAGE_NAME }} versions --registry https://npm.pkg.github.com --json | grep ${{ env.FULL_VERSION }} || true)
           if [ -z "$EXISTS" ]; then
             echo "PUBLISH_GH=true" >> $GITHUB_OUTPUT
           else
@@ -89,7 +97,7 @@ jobs:
         id: check_npm
         if: env.REGISTRY_TYPE == 'npm' || env.REGISTRY_TYPE == 'all'
         run: |
-          EXISTS=$(npm view $PACKAGE_NAME versions --json | grep $VERSION || true)
+          EXISTS=$(npm view  ${{ env.PACKAGE_NAME }} versions --json | grep ${{ env.FULL_VERSION }} || true)
           if [ -z "$EXISTS" ]; then
             echo "PUBLISH_NPM=true" >> $GITHUB_OUTPUT
           else
@@ -104,13 +112,13 @@ jobs:
 
       - name: Write version to package.json and .env
         run: |
-          node -e "let p=require('./package.json'); p.version='$VERSION'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
+          node -e "let p=require('./package.json'); p.version='${{ env.FULL_VERSION }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
 
           touch .env
-          if grep -q '^VITE_APP_VERSION=' .env; then
-            sed -i "s/^VITE_APP_VERSION=.*/VITE_APP_VERSION=$VERSION/" .env
+          if grep -q '^${{ env.ENV_PROPERTY }}=' .env; then
+            sed -i "s/^${{ env.ENV_PROPERTY }}=.*/${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}/" .env
           else
-            echo "VITE_APP_VERSION=$VERSION" >> .env
+            echo "${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}" >> .env
           fi
 
       - name: Publish to GitHub Packages
@@ -133,9 +141,9 @@ jobs:
 
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m "version: $VERSION"
+            git commit -m "version: ${{ env.FULL_VERSION }}"
           fi
 
-          git tag -a "v$VERSION" -m "version: $VERSION"
-          git push origin HEAD:${{ needs.setup-branch.outputs.branch_name }}
-          git push origin "v$VERSION"
+          git tag -a "v${{ env.FULL_VERSION }}" -m "version: ${{ env.FULL_VERSION }}"
+          git push origin HEAD:${{ env.BRANCH_NAME }}
+          git push origin "v${{ env.FULL_VERSION }}"
