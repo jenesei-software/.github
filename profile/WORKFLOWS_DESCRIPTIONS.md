@@ -15,6 +15,16 @@
   on:
     workflow_dispatch:
       inputs:
+        build_folder:
+          description: "Build output folder"
+          required: false
+          default: "build"
+          type: string
+        env_property:
+          description: "Environment property to set version in .env file, e.g., VITE_APP_VERSION"
+          required: false
+          default: "VITE_APP_VERSION"
+          type: string
         version_type:
           description: "Version bump"
           required: false
@@ -49,6 +59,8 @@
     call-publisher:
       uses: jenesei-software/.github/.github/workflows/deploy-node.yml@main
       with:
+        build_folder: ${{ inputs.build_folder }}
+        env_property: ${{ inputs.env_property }}
         version_type: ${{ inputs.version_type }}
         package_manager: ${{ inputs.package_manager }}
         add_branch_name: ${{ inputs.add_branch_name }}
@@ -73,6 +85,16 @@
   on:
     workflow_dispatch:
       inputs:
+        build_folder:
+          description: "Build output folder"
+          required: false
+          default: "build"
+          type: string
+        env_property:
+          description: "Environment property to set version in .env file, e.g., VITE_APP_VERSION"
+          required: false
+          default: "VITE_APP_VERSION"
+          type: string
         registry_type:
           description: "Registry type"
           required: true
@@ -106,6 +128,8 @@
     call-publisher:
       uses: jenesei-software/.github/.github/workflows/deploy-library.yml@main
       with:
+        build_folder: ${{ inputs.build_folder }}
+        env_property: ${{ inputs.env_property }}
         registry_type: ${{ inputs.registry_type }}
         version_type: ${{ inputs.version_type }}
         package_manager: ${{ inputs.package_manager }}
