@@ -22,7 +22,7 @@ on:
         default: "build"
         type: string
       build_runner:
-        description: "github runner: ubuntu-latest | windows-latest | macos-latest"
+        description: "GitHub runner: ubuntu-latest | windows-latest | macos-latest"
         required: false
         default: "ubuntu-latest"
         type: string
@@ -49,6 +49,7 @@ jobs:
           node-version: "20.x"
 
       - name: Setup npmrc for GitHub Packages
+        shell: bash
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
           echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
@@ -79,6 +80,7 @@ jobs:
             r1/${{ runner.os }}/${{ env.PACKAGE_MANAGER }}/deps/
 
       - name: Install dependencies
+        shell: bash
         env:
           BUN_INSTALL_REGISTRY_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
           BUN_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
@@ -106,17 +108,18 @@ jobs:
           esac
 
       - name: Write version to package.json and .env
+        shell: bash
         run: |
           node -e "let p=require('./package.json'); p.version='${{ env.FULL_VERSION }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
-
           touch .env
-          if grep -q '^${{ env.ENV_PROPERTY }}=' .env; then
+          if grep -q "^${{ env.ENV_PROPERTY }}=" .env; then
             sed -i "s/^${{ env.ENV_PROPERTY }}=.*/${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}/" .env
           else
             echo "${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}" >> .env
           fi
 
       - name: Build project
+        shell: bash
         run: |
           echo "Building for branch: ${{ env.BRANCH_NAME }}"
           case "${{ env.PACKAGE_MANAGER }}" in
@@ -135,6 +138,7 @@ jobs:
           esac
 
       - name: Write build info
+        shell: bash
         run: |
           COMMIT="$(git rev-parse --short HEAD)"
           DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"

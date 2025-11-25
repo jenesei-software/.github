@@ -31,7 +31,7 @@ on:
         type: boolean
         default: true
       build_runner:
-        description: "github runner: ubuntu-latest | windows-latest | macos-latest"
+        description: "GitHub runner: ubuntu-latest | windows-latest | macos-latest"
         required: false
         default: "ubuntu-latest"
         type: string
