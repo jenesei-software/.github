@@ -21,7 +21,7 @@ on:
         required: false
         default: "build"
         type: string
-      runner:
+      build_runner:
         description: "github runner: ubuntu-latest | windows-latest | macos-latest"
         required: false
         default: "ubuntu-latest"
@@ -32,7 +32,7 @@ on:
 
 jobs:
   setup-build:
-    runs-on: ${{ inputs.runner }}
+    runs-on: ${{ inputs.build_runner }}
     env:
       FULL_VERSION: ${{ inputs.full_version }}
       PACKAGE_MANAGER: ${{ inputs.package_manager }}
