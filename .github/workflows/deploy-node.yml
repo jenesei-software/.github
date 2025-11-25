@@ -121,6 +121,9 @@ jobs:
           git lfs track "*.exe"
           git add .gitattributes
 
+      - name: Increase git buffer
+        run: git config --global http.postBuffer 524288000
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
