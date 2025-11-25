@@ -30,6 +30,11 @@ on:
         required: false
         type: boolean
         default: true
+      add_lfs:
+        description: "Whether to setup Git LFS for large files"
+        required: false
+        type: boolean
+        default: false
       build_runner:
         description: "GitHub runner: ubuntu-latest | windows-latest | macos-latest"
         required: false
@@ -107,6 +112,15 @@ jobs:
           git push origin HEAD:${{ env.BRANCH_NAME }}
           git push origin "v${{ env.FULL_VERSION }}"
 
+      - name: Setup Git LFS
+        if: ${{ inputs.add_lfs }}
+        run: |
+          git lfs install
+          git lfs track "*.dll"
+          git lfs track "*.bin"
+          git lfs track "*.exe"
+          git add .gitattributes
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -114,3 +128,4 @@ jobs:
           publish_branch: build_${{ env.BRANCH_NAME }}
           publish_dir: ${{ inputs.build_folder }}
           force_orphan: true
+          keep_files: false 
