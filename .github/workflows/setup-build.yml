@@ -21,13 +21,18 @@ on:
         required: false
         default: "build"
         type: string
+      runner:
+        description: "github runner: ubuntu-latest | windows-latest | macos-latest"
+        required: false
+        default: "ubuntu-latest"
+        type: string
     secrets:
       ACCESS_GITHUB_TOKEN:
         required: true
 
 jobs:
   setup-build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     env:
       FULL_VERSION: ${{ inputs.full_version }}
       PACKAGE_MANAGER: ${{ inputs.package_manager }}
