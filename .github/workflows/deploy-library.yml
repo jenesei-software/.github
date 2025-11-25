@@ -108,7 +108,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artifact-build
-          path: build
+          path: ${{ inputs.build_folder }}
 
       - name: Write version to package.json and .env
         run: |
