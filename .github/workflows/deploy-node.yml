@@ -40,6 +40,11 @@ on:
         required: false
         default: "ubuntu-latest"
         type: string
+      build_command:
+        description: "Build command, defaults to build:<branch>"
+        required: false
+        default: ""
+        type: string
     secrets:
       ACCESS_GITHUB_TOKEN:
         required: true
@@ -64,6 +69,7 @@ jobs:
       env_property: ${{ inputs.env_property }}
       build_folder: ${{ inputs.build_folder }}
       build_runner: ${{ inputs.build_runner }}
+      build_command: ${{ inputs.build_command }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 

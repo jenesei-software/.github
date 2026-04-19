@@ -26,6 +26,11 @@ on:
         required: false
         default: "ubuntu-latest"
         type: string
+      build_command:
+        description: "Build command, defaults to build:<branch>"
+        required: false
+        default: ""
+        type: string
     secrets:
       ACCESS_GITHUB_TOKEN:
         required: true
@@ -39,6 +44,7 @@ jobs:
       ENV_PROPERTY: ${{ inputs.env_property }}
       BUILD_FOLDER: ${{ inputs.build_folder }}
       BRANCH_NAME: ${{ github.ref_name }}
+      BUILD_COMMAND: ${{ inputs.build_command }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -121,19 +127,25 @@ jobs:
       - name: Build project
         shell: bash
         run: |
+          BUILD_COMMAND="${{ env.BUILD_COMMAND }}"
+          if [ -z "$BUILD_COMMAND" ]; then
+            BUILD_COMMAND="build:${{ env.BRANCH_NAME }}"
+          fi
+
           echo "Building for branch: ${{ env.BRANCH_NAME }}"
+          echo "Using build command: ${BUILD_COMMAND}"
           case "${{ env.PACKAGE_MANAGER }}" in
             npm)
-              npm run build:${{ env.BRANCH_NAME }}
+              npm run "$BUILD_COMMAND"
               ;;
             yarn)
-              yarn build:${{ env.BRANCH_NAME }}
+              yarn "$BUILD_COMMAND"
               ;;
             bun)
-              bun run build:${{ env.BRANCH_NAME }}
+              bun run "$BUILD_COMMAND"
               ;;
             pnpm)
-              pnpm run build:${{ env.BRANCH_NAME }}
+              pnpm run "$BUILD_COMMAND"
               ;;
           esac
 
