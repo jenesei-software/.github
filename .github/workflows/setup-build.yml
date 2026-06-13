@@ -149,15 +149,6 @@ jobs:
               ;;
           esac
 
-      - name: Write build info
-        shell: bash
-        run: |
-          COMMIT="$(git rev-parse --short HEAD)"
-          DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          echo "version: ${{ env.FULL_VERSION }}" > ${{ env.BUILD_FOLDER }}/build-info.txt
-          echo "commit: $COMMIT" >> ${{ env.BUILD_FOLDER }}/build-info.txt
-          echo "date: $DATE" >> ${{ env.BUILD_FOLDER }}/build-info.txt
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
