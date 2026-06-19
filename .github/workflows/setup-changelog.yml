@@ -107,6 +107,45 @@ jobs:
             npm install --global conventional-changelog-cli
           fi
 
+      - name: Configure conventional changelog parser
+        if: ${{ inputs.run_changelog && steps.check_changelog.outputs.HAS_CHANGELOG_SCRIPT == 'true' }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const packagePath = './package.json';
+          const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+          const script = packageJson.scripts?.changelog || '';
+
+          if (!script.includes('conventional-changelog')) {
+            process.exit(0);
+          }
+
+          if (/(^|\s)(-n|--config)(\s|=)/.test(script)) {
+            process.exit(0);
+          }
+
+          const configPath = '.github/changelog.config.cjs';
+          fs.mkdirSync('.github', { recursive: true });
+          fs.writeFileSync(configPath, [
+            'module.exports = {',
+            '  parserOpts: {',
+            '    headerPattern: /^(\\w*)(?:\\(([^)]*)\\))?: (.*)$/,',
+            "    headerCorrespondence: ['tag', 'scope', 'message'],",
+            "    noteKeywords: ['BREAKING CHANGE', 'BREAKING CHANGES'],",
+            '  },',
+            '};',
+            '',
+          ].join('\n'));
+
+          packageJson.scripts.changelog = script.replace(
+            /(^|[;&|()\s])conventional-changelog(?=\s|$)/,
+            `$1conventional-changelog -n ${configPath}`,
+          );
+
+          fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2));
+          NODE
+
       - name: Write version to package.json
         if: ${{ inputs.run_changelog && steps.check_changelog.outputs.HAS_CHANGELOG_SCRIPT == 'true' && env.FULL_VERSION != '' }}
         run: node -e "let p=require('./package.json'); p.version='${{ env.FULL_VERSION }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
