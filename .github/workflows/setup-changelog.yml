@@ -18,7 +18,7 @@ on:
         type: boolean
     outputs:
       has_changelog:
-        description: "Whether CHANGELOG.md was generated and uploaded"
+        description: "Has changelog"
         value: ${{ jobs.setup-changelog.outputs.has_changelog }}
     secrets:
       ACCESS_GITHUB_TOKEN:
@@ -98,6 +98,14 @@ jobs:
           BUN_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
           NPM_CONFIG_USERCONFIG: ~/.npmrc
+
+      - name: Install conventional changelog CLI
+        if: ${{ inputs.run_changelog && steps.check_changelog.outputs.HAS_CHANGELOG_SCRIPT == 'true' }}
+        run: |
+          USES_CONVENTIONAL_CHANGELOG=$(node -e "const script=require('./package.json').scripts.changelog || ''; process.stdout.write(script.includes('conventional-changelog') ? 'true' : 'false');")
+          if [ "$USES_CONVENTIONAL_CHANGELOG" = "true" ] && [ ! -x node_modules/.bin/conventional-changelog ] && ! command -v conventional-changelog >/dev/null 2>&1; then
+            npm install --global conventional-changelog-cli
+          fi
 
       - name: Write version to package.json
         if: ${{ inputs.run_changelog && steps.check_changelog.outputs.HAS_CHANGELOG_SCRIPT == 'true' && env.FULL_VERSION != '' }}
