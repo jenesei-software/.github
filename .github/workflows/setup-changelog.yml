@@ -1,0 +1,143 @@
+name: setup-changelog
+
+on:
+  workflow_call:
+    inputs:
+      package_manager:
+        description: "npm | yarn | bun | pnpm"
+        required: true
+        type: string
+      full_version:
+        description: "Full version string to write to package.json before changelog"
+        required: false
+        type: string
+      run_changelog:
+        description: "Run package manager changelog script if it exists"
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      has_changelog:
+        description: "Whether CHANGELOG.md was generated and uploaded"
+        value: ${{ jobs.setup-changelog.outputs.has_changelog }}
+    secrets:
+      ACCESS_GITHUB_TOKEN:
+        required: true
+
+jobs:
+  setup-changelog:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changelog: ${{ steps.changelog_file.outputs.HAS_CHANGELOG }}
+    env:
+      PACKAGE_MANAGER: ${{ inputs.package_manager }}
+      FULL_VERSION: ${{ inputs.full_version }}
+    steps:
+      - name: Checkout repository
+        if: ${{ inputs.run_changelog }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        if: ${{ inputs.run_changelog }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Check changelog script
+        id: check_changelog
+        if: ${{ inputs.run_changelog }}
+        run: |
+          if node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts.changelog ? 0 : 1);"; then
+            echo "HAS_CHANGELOG_SCRIPT=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "HAS_CHANGELOG_SCRIPT=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup pnpm
+        if: ${{ inputs.run_changelog && steps.check_changelog.outputs.HAS_CHANGELOG_SCRIPT == 'true' && env.PACKAGE_MANAGER == 'pnpm' }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Bun
+        if: ${{ inputs.run_changelog && steps.check_changelog.outputs.HAS_CHANGELOG_SCRIPT == 'true' && env.PACKAGE_MANAGER == 'bun' }}
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        if: ${{ inputs.run_changelog && steps.check_changelog.outputs.HAS_CHANGELOG_SCRIPT == 'true' }}
+        run: |
+          touch ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" >> ~/.npmrc
+          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+
+          case "${{ env.PACKAGE_MANAGER }}" in
+            npm)
+              npm ci
+              ;;
+            yarn)
+              corepack enable
+              yarn install --frozen-lockfile
+              ;;
+            bun)
+              bun install --no-save
+              ;;
+            pnpm)
+              pnpm install --frozen-lockfile
+              ;;
+            *)
+              echo "Unknown package manager: ${{ env.PACKAGE_MANAGER }}"
+              exit 1
+              ;;
+          esac
+        env:
+          BUN_INSTALL_REGISTRY_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+          BUN_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ~/.npmrc
+
+      - name: Write version to package.json
+        if: ${{ inputs.run_changelog && steps.check_changelog.outputs.HAS_CHANGELOG_SCRIPT == 'true' && env.FULL_VERSION != '' }}
+        run: node -e "let p=require('./package.json'); p.version='${{ env.FULL_VERSION }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
+
+      - name: Run changelog
+        if: ${{ inputs.run_changelog && steps.check_changelog.outputs.HAS_CHANGELOG_SCRIPT == 'true' }}
+        run: |
+          case "${{ env.PACKAGE_MANAGER }}" in
+            npm)
+              npm run changelog
+              ;;
+            yarn)
+              yarn changelog
+              ;;
+            bun)
+              bun run changelog
+              ;;
+            pnpm)
+              pnpm run changelog
+              ;;
+            *)
+              echo "Unknown package manager: ${{ env.PACKAGE_MANAGER }}"
+              exit 1
+              ;;
+          esac
+
+      - name: Check CHANGELOG.md
+        id: changelog_file
+        if: ${{ always() }}
+        run: |
+          if [ "${{ inputs.run_changelog }}" = "true" ] && [ "${{ steps.check_changelog.outputs.HAS_CHANGELOG_SCRIPT }}" = "true" ] && [ -f CHANGELOG.md ]; then
+            echo "HAS_CHANGELOG=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "HAS_CHANGELOG=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload changelog artifact
+        if: ${{ inputs.run_changelog && steps.changelog_file.outputs.HAS_CHANGELOG == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-changelog
+          path: CHANGELOG.md

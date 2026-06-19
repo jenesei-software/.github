@@ -32,6 +32,11 @@ on:
         required: false
         default: ""
         type: string
+      run_changelog:
+        description: "Run package manager changelog script before version commit if it exists"
+        required: false
+        default: false
+        type: boolean
     secrets:
       NPM_TOKEN:
         required: false
@@ -64,8 +69,18 @@ jobs:
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
+  setup-changelog:
+    needs: [setup-version]
+    uses: jenesei-software/.github/.github/workflows/setup-changelog.yml@main
+    with:
+      full_version: ${{ needs.setup-version.outputs.full_version }}
+      package_manager: ${{ inputs.package_manager }}
+      run_changelog: ${{ inputs.run_changelog }}
+    secrets:
+      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+
   publish:
-    needs: [setup-build, setup-version, setup-package-name]
+    needs: [setup-build, setup-version, setup-package-name, setup-changelog]
     runs-on: ubuntu-latest
     env:
       FULL_VERSION: ${{ needs.setup-version.outputs.full_version }}
@@ -127,6 +142,13 @@ jobs:
             echo "${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}" >> .env
           fi
 
+      - name: Download changelog artifact
+        if: ${{ needs.setup-changelog.outputs.has_changelog == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: artifact-changelog
+          path: .
+
       - name: Publish to GitHub Packages
         if: steps.check_github.outputs.PUBLISH_GH == 'true'
         run: npm publish --registry=https://npm.pkg.github.com/
@@ -146,6 +168,9 @@ jobs:
           git config --local user.name "github-actions[bot]"
 
           git add -u
+          if [ "${{ needs.setup-changelog.outputs.has_changelog }}" = "true" ] && [ -f CHANGELOG.md ]; then
+            git add CHANGELOG.md
+          fi
           if ! git diff --cached --quiet; then
             git commit -m "version: ${{ env.FULL_VERSION }}"
           fi
