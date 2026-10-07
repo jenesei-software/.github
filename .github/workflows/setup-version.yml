@@ -3,134 +3,187 @@ name: setup-version
 on:
   workflow_call:
     inputs:
-      # Version type to bump: major, minor, patch, or none (empty)
       version_type:
+        description: "major | minor | patch | none (keep current)"
+        required: false
+        default: "none"
+        type: string
+      explicit_version:
+        description: "Explicit version, overrides version_type"
         required: false
         type: string
-      # Branch name, defaults to github.ref_name if not provided
-      branch_name:
+      package_manager:
+        description: "npm | yarn | bun | pnpm"
         required: false
+        default: "npm"
         type: string
-      # Whether to add branch name to the version string (default: true)
-      add_branch_name:
+      check_command:
+        description: "Check command, empty skips checks"
         required: false
-        type: boolean
-        default: false
-      # Whether to add build number to the version string (default: true)
-      add_build_number:
+        default: "check"
+        type: string
+      changelog_preset:
+        description: "conventional-changelog preset, empty disables changelog"
         required: false
-        type: boolean
-        default: false
+        default: ""
+        type: string
     secrets:
-      # GitHub access token required for git commands
       ACCESS_GITHUB_TOKEN:
         required: true
     outputs:
-      # Full version string including build and branch or "tag not changed"
-      full_version:
-        description: "Full version including build or 'tag not changed'"
-        value: ${{ jobs.setup-version.outputs.full_version }}
-      # Flag indicating if the tag was changed (true/false)
-      tag_changed:
-        description: "Whether the tag was changed or not"
-        value: ${{ jobs.setup-version.outputs.tag_changed }}
+      version:
+        description: "Released version"
+        value: ${{ jobs.setup-version.outputs.version }}
+      tag:
+        description: "Released tag"
+        value: ${{ jobs.setup-version.outputs.tag }}
+      sha:
+        description: "Commit the release points at"
+        value: ${{ jobs.setup-version.outputs.sha }}
+
+permissions:
+  contents: write
 
 jobs:
   setup-version:
     runs-on: ubuntu-latest
     outputs:
-      # Pass outputs from the 'define' step
-      full_version: ${{ steps.define.outputs.full_version }}
-      tag_changed: ${{ steps.define.outputs.tag_changed }}
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+      sha: ${{ steps.bump.outputs.sha }}
+    env:
+      PACKAGE_MANAGER: ${{ inputs.package_manager }}
+      CHECK_COMMAND: ${{ inputs.check_command }}
+      CHANGELOG_PRESET: ${{ inputs.changelog_preset }}
+      EXPLICIT_VERSION: ${{ inputs.explicit_version }}
+      VERSION_TYPE: ${{ inputs.version_type }}
+      BRANCH_NAME: ${{ github.ref_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        # Checkout repository to access files and git history
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22.x"
-        # Setup Node.js environment to run node commands
 
-      - name: Fetch all tags
-        run: git fetch --tags
-        # Fetch all git tags from remote to check existing versions
+      - name: Setup pnpm
+        if: env.PACKAGE_MANAGER == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
 
-      - name: Define version type and bump version
-        id: define
+      - name: Setup Bun
+        if: env.PACKAGE_MANAGER == 'bun'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup npmrc for GitHub Packages
         run: |
-          # Log input parameters for debugging
-          echo "Version type input: ${{ inputs.version_type }}"
-          echo "Add branch name: ${{ inputs.add_branch_name }}"
-          echo "Add build number: ${{ inputs.add_build_number }}"
+          touch ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" >> ~/.npmrc
+          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+        env:
+          NPM_CONFIG_USERCONFIG: ~/.npmrc
 
-          # Determine version bump type (major, minor, patch or none)
-          if [[ -n "${{ inputs.version_type }}" ]]; then
-            VERSION_TYPE="${{ inputs.version_type }}"
+      - name: Install dependencies
+        env:
+          NPM_CONFIG_USERCONFIG: ~/.npmrc
+        run: |
+          case "$PACKAGE_MANAGER" in
+            npm) npm ci ;;
+            yarn) corepack enable && yarn install --frozen-lockfile ;;
+            bun) bun install --frozen-lockfile ;;
+            pnpm) pnpm install --frozen-lockfile ;;
+            *) echo "::error::Unknown package manager: $PACKAGE_MANAGER"; exit 1 ;;
+          esac
+
+      - name: Run checks
+        if: inputs.check_command != ''
+        env:
+          NPM_CONFIG_USERCONFIG: ~/.npmrc
+        run: |
+          if node -e "const s=require('./package.json').scripts||{}; process.exit(s['${{ inputs.check_command }}'] ? 0 : 1);"; then
+            case "$PACKAGE_MANAGER" in
+              npm) npm run "${{ inputs.check_command }}" ;;
+              yarn) yarn "${{ inputs.check_command }}" ;;
+              bun) bun run "${{ inputs.check_command }}" ;;
+              pnpm) pnpm run "${{ inputs.check_command }}" ;;
+            esac
           else
-            VERSION_TYPE="none"
+            echo "::warning::No '${{ inputs.check_command }}' script, skipping checks"
           fi
-          echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_ENV
 
-          # Get branch name either from input or from github context
-          BRANCH_NAME="${{ inputs.branch_name || github.ref_name }}"
-          ADD_BRANCH_NAME="${{ inputs.add_branch_name }}"
-          ADD_BUILD_NUMBER="${{ inputs.add_build_number }}"
+      - name: Generate changelog
+        if: inputs.changelog_preset != ''
+        run: npx --yes conventional-changelog-cli -p "$CHANGELOG_PRESET" -i CHANGELOG.md -s
+        continue-on-error: true
 
-          # Read current version from package.json and remove any pre-release suffix (e.g., -beta)
-          PACKAGE_VERSION_RAW=$(node -p "require('./package.json').version")
-          BASE_VERSION=$(echo "$PACKAGE_VERSION_RAW" | sed 's/-.*//')
+      - name: Bump version
+        id: bump
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          BASE=$(printf '%s' "$CURRENT" | sed 's/-.*//')
 
-          VERSION="$BASE_VERSION"
-          BUILD=""
-
-          # If bump type is specified, calculate new version accordingly
-          if [ "$VERSION_TYPE" != "none" ]; then
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
-            if [ "$VERSION_TYPE" = "major" ]; then
-              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
-            elif [ "$VERSION_TYPE" = "minor" ]; then
-              MINOR=$((MINOR + 1)); PATCH=0
-            elif [ "$VERSION_TYPE" = "patch" ]; then
-              PATCH=$((PATCH + 1))
-            fi
-            VERSION="${MAJOR}.${MINOR}.${PATCH}"
-            BUILD=1
+          if [ -n "$EXPLICIT_VERSION" ]; then
+            VERSION=$(printf '%s' "$EXPLICIT_VERSION" | sed 's/^v//; s/-.*//')
+          elif [ "$VERSION_TYPE" != "none" ]; then
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+            MAJOR=${MAJOR:-0}
+            MINOR=${MINOR:-0}
+            PATCH=${PATCH:-0}
+            case "$VERSION_TYPE" in
+              major) VERSION="$((MAJOR + 1)).0.0" ;;
+              minor) VERSION="$MAJOR.$((MINOR + 1)).0" ;;
+              patch) VERSION="$MAJOR.$MINOR.$((PATCH + 1))" ;;
+              *) echo "::error::Unknown version type: $VERSION_TYPE"; exit 1 ;;
+            esac
           else
-            # If no version specified, default to 0.0.0
-            if [ -z "$VERSION" ]; then VERSION="0.0.0"; fi
-
-            # If build number is enabled, count existing tags for this version and branch, then increment
-            if [ "$ADD_BUILD_NUMBER" = "true" ]; then
-              BUILD=$(git tag | grep "^v$VERSION-$BRANCH_NAME\." | wc -l)
-              BUILD=$((BUILD + 1))
-            fi
+            VERSION="$BASE"
           fi
 
-          # Construct the full version string depending on flags
-          FULL_VERSION="$VERSION"
-          if [ "$ADD_BRANCH_NAME" = "true" ]; then
-            FULL_VERSION="${FULL_VERSION}-$BRANCH_NAME"
-          fi
-          if [ "$ADD_BUILD_NUMBER" = "true" ]; then
-            # Default build to 1 if empty
-            if [ -z "$BUILD" ]; then BUILD=1; fi
-            FULL_VERSION="${FULL_VERSION}.$BUILD"
+          TAG="v$VERSION"
+
+          if git tag -l "$TAG" | grep -q .; then
+            echo "::error::Tag $TAG already exists. Bump version_type or set explicit_version."
+            exit 1
           fi
 
-          # Check if tag with this version already exists (with 'v' prefix)
-          TAG_EXISTS=$(git tag -l "v$FULL_VERSION")
+          echo "Releasing $TAG (was $CURRENT, branch $BRANCH_NAME)"
 
-          # Determine if tag changed:
-          # If no version bump (version_type=none), no branch or build number added,
-          # and tag already exists, then tag did NOT change
-          if [ "$VERSION_TYPE" = "none" ] && [ "$ADD_BUILD_NUMBER" = "false" ] && [ "$ADD_BRANCH_NAME" = "false" ] && [ -n "$TAG_EXISTS" ]; then
-            # Output old tag and false for tag_changed
-            echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
-            echo "tag_changed=false" >> $GITHUB_OUTPUT
+          npm version "$VERSION" --no-git-tag-version
+
+          git add package.json
+          [ -f CHANGELOG.md ] && git add CHANGELOG.md || true
+
+          if git diff --cached --quiet; then
+            echo "Nothing to commit, tag will point at the current commit"
           else
-            # Otherwise, new or changed tag
-            echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
-            echo "tag_changed=true" >> $GITHUB_OUTPUT
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            git commit -m "chore(release): $TAG"
+            git push origin "HEAD:$BRANCH_NAME"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            gh release create "${{ steps.bump.outputs.tag }}" \
+              --title "${{ steps.bump.outputs.tag }}" \
+              --target "${{ steps.bump.outputs.sha }}" \
+              --notes-file CHANGELOG.md
+          else
+            gh release create "${{ steps.bump.outputs.tag }}" \
+              --title "${{ steps.bump.outputs.tag }}" \
+              --target "${{ steps.bump.outputs.sha }}" \
+              --generate-notes
           fi

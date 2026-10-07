@@ -3,56 +3,70 @@ name: setup-readme-versions
 on:
   workflow_call:
 
+permissions:
+  contents: write
+
 jobs:
   update-readme:
     runs-on: ubuntu-latest
-
+    outputs:
+      version: ${{ steps.versions.outputs.version }}
     steps:
-      - name: Checkout default branch
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.repository.default_branch }}
 
-      - name: Fetch all branches
-        run: git fetch --all --prune
-
-      - name: Get versions from corresponding branches
-        id: get_versions
+      - name: Read latest released version
+        id: versions
         run: |
-          echo "VERSION_BLOCK=## 🚀 ACTUAL VERSIONS" > $GITHUB_ENV
-          VERSION_BLOCK="## 🚀 ACTUAL VERSIONS"
-
-          for build_branch in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | grep '^origin/build_'); do
-            short_build=${build_branch#origin/}         # build_alpha
-            target_branch=${short_build#build_}          # alpha
-            version=$(git show "origin/$target_branch:package.json" | jq -r .version 2>/dev/null || echo "unknown")
-            VERSION_BLOCK="$VERSION_BLOCK\n- \`\`$target_branch\`\` - \`\`$version\`\`"
-          done
-
-          echo -e "VERSION_BLOCK<<EOF" >> $GITHUB_ENV
-          echo -e "$VERSION_BLOCK" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-      - name: Update README Version Block
-        run: |
-          if grep -q "## 🚀 ACTUAL VERSIONS" README.md; then
-            awk '/## 🚀 ACTUAL VERSIONS/ {print ENVIRON["VERSION_BLOCK"]; skip=1; next} /^## / {skip=0} !skip' README.md > README.tmp && mv README.tmp README.md
+          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            VERSION="none"
           else
-            echo -e "$VERSION_BLOCK\n\n$(cat README.md)" > README.md
+            VERSION="${LATEST_TAG#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Latest released version: $VERSION"
+
+      - name: Replace README version block
+        run: |
+          VERSION="${{ steps.versions.outputs.version }}"
+
+          {
+            printf '## 🚀 ACTUAL VERSIONS\n\n'
+            if [ "$VERSION" = "none" ]; then
+              printf -- '- no releases yet\n'
+            else
+              printf -- '- `%s`\n' "$VERSION"
+            fi
+            printf '\n'
+          } > block.tmp
+
+          if grep -q '^## 🚀 ACTUAL VERSIONS' README.md; then
+            awk '
+              /^## 🚀 ACTUAL VERSIONS/ {
+                while ((getline line < "block.tmp") > 0) print line
+                skipping = 1
+                next
+              }
+              skipping && /^## / { skipping = 0 }
+              !skipping { print }
+            ' README.md > README.tmp
+          else
+            cat block.tmp README.md > README.tmp
           fi
 
-      - name: Configure Git
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          rm -f block.tmp
 
-      - name: Commit and push changes
-        run: |
-          git add README.md
-          if ! git diff --cached --quiet; then
-            git commit -m "readme: update versions"
-            git push origin "${{ github.event.repository.default_branch }}"
-          else
+          if cmp -s README.tmp README.md; then
             echo "No changes detected in README.md"
+          else
+            mv README.tmp README.md
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            git add README.md
+            git commit -m "docs(readme): update actual versions"
+            git push origin "${{ github.event.repository.default_branch }}"
           fi
+          rm -f README.tmp

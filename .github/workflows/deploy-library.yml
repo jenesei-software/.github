@@ -3,178 +3,120 @@ name: deploy-library
 on:
   workflow_call:
     inputs:
-      build_folder:
-        description: "Build output folder"
+      version_type:
+        description: "major | minor | patch | none (keep current)"
         required: false
-        default: "build"
+        default: "patch"
         type: string
-      env_property:
-        description: "Environment property"
-        default: "VITE_APP_VERSION"
+      explicit_version:
+        description: "Explicit version, overrides version_type"
         required: false
         type: string
       registry_type:
         description: "npm | github | all"
-        required: true
+        required: false
         default: "github"
-        type: string
-      version_type:
-        description: "major | minor | patch | none"
-        required: true
         type: string
       package_manager:
         description: "npm | yarn | bun | pnpm"
         required: false
         default: "npm"
         type: string
-      build_command:
-        description: "Build command, defaults to build:<branch>"
+      check_command:
+        description: "Check command, empty skips checks"
         required: false
-        default: ""
+        default: "check"
         type: string
-      run_changelog:
-        description: "Has changelog"
+      changelog_preset:
+        description: "conventional-changelog preset, empty disables changelog"
         required: false
-        default: false
-        type: boolean
+        default: "angular"
+        type: string
     secrets:
       NPM_TOKEN:
         required: false
       ACCESS_GITHUB_TOKEN:
         required: true
+    outputs:
+      version:
+        description: "Released version"
+        value: ${{ jobs.setup-version.outputs.version }}
+      tag:
+        description: "Released tag"
+        value: ${{ jobs.setup-version.outputs.tag }}
+
+permissions:
+  contents: write
 
 jobs:
-  setup-package-name:
-    uses: jenesei-software/.github/.github/workflows/setup-package-name.yml@main
-    secrets:
-      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-
   setup-version:
     uses: jenesei-software/.github/.github/workflows/setup-version.yml@main
     with:
       version_type: ${{ inputs.version_type }}
-      branch_name: ${{ github.ref_name }}
-    secrets:
-      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-
-  setup-build:
-    needs: [setup-version]
-    uses: jenesei-software/.github/.github/workflows/setup-build.yml@main
-    with:
-      full_version: ${{ needs.setup-version.outputs.full_version }}
+      explicit_version: ${{ inputs.explicit_version }}
       package_manager: ${{ inputs.package_manager }}
-      env_property: ${{ inputs.env_property }}
-      build_folder: ${{ inputs.build_folder }}
-      build_command: ${{ inputs.build_command }}
-    secrets:
-      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-
-  setup-changelog:
-    needs: [setup-version]
-    uses: jenesei-software/.github/.github/workflows/setup-changelog.yml@main
-    with:
-      full_version: ${{ needs.setup-version.outputs.full_version }}
-      package_manager: ${{ inputs.package_manager }}
-      run_changelog: ${{ inputs.run_changelog }}
+      check_command: ${{ inputs.check_command }}
+      changelog_preset: ${{ inputs.changelog_preset }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   publish:
-    needs: [setup-build, setup-version, setup-package-name, setup-changelog]
+    needs: [setup-version]
     runs-on: ubuntu-latest
     env:
-      FULL_VERSION: ${{ needs.setup-version.outputs.full_version }}
-      PACKAGE_NAME: ${{ needs.setup-package-name.outputs.package_name }}
+      VERSION: ${{ needs.setup-version.outputs.version }}
       REGISTRY_TYPE: ${{ inputs.registry_type }}
-      ENV_PROPERTY: ${{ inputs.env_property }}
-      BRANCH_NAME: ${{ github.ref_name }}
+      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
-      - name: Checkout repository
+      - name: Checkout released commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup-version.outputs.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          registry-url: https://registry.npmjs.org
 
       - name: Configure npm for GitHub Packages
-        if: env.REGISTRY_TYPE == 'github' || env.REGISTRY_TYPE == 'all'
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" >> ~/.npmrc
+        if: inputs.registry_type == 'github' || inputs.registry_type == 'all'
+        run: echo "//npm.pkg.github.com/:_authToken=$ACCESS_GITHUB_TOKEN" >> ~/.npmrc
 
-      - name: Configure npm for NPM Registry
-        if: env.REGISTRY_TYPE == 'npm' || env.REGISTRY_TYPE == 'all'
-        run: |
-          if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
-            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
-          fi
-
-      - name: Check GitHub version
+      - name: Check GitHub Packages version
         id: check_github
-        if: env.REGISTRY_TYPE == 'github' || env.REGISTRY_TYPE == 'all'
+        if: inputs.registry_type == 'github' || inputs.registry_type == 'all'
         run: |
-          EXISTS=$(npm view ${{ env.PACKAGE_NAME }} versions --registry https://npm.pkg.github.com --json | grep ${{ env.FULL_VERSION }} || true)
-          if [ -z "$EXISTS" ]; then
-            echo "PUBLISH_GH=true" >> $GITHUB_OUTPUT
+          NAME=$(node -p "require('./package.json').name")
+          if npm view "$NAME" versions --registry https://npm.pkg.github.com --json 2>/dev/null | grep -q "\"$VERSION\""; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
           else
-            echo "PUBLISH_GH=false" >> $GITHUB_OUTPUT
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check NPM version
         id: check_npm
-        if: env.REGISTRY_TYPE == 'npm' || env.REGISTRY_TYPE == 'all'
+        if: inputs.registry_type == 'npm' || inputs.registry_type == 'all'
         run: |
-          EXISTS=$(npm view  ${{ env.PACKAGE_NAME }} versions --json | grep ${{ env.FULL_VERSION }} || true)
-          if [ -z "$EXISTS" ]; then
-            echo "PUBLISH_NPM=true" >> $GITHUB_OUTPUT
+          NAME=$(node -p "require('./package.json').name")
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::NPM_TOKEN is empty, skipping npmjs.org"
+          elif npm view "$NAME" versions --json 2>/dev/null | grep -q "\"$VERSION\""; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
           else
-            echo "PUBLISH_NPM=false" >> $GITHUB_OUTPUT
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: artifact-build
-          path: ${{ inputs.build_folder }}
-
-      - name: Write version to package.json and .env
-        run: |
-          node -e "let p=require('./package.json'); p.version='${{ env.FULL_VERSION }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
-
-          touch .env
-          if grep -q '^${{ env.ENV_PROPERTY }}=' .env; then
-            sed -i "s/^${{ env.ENV_PROPERTY }}=.*/${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}/" .env
-          else
-            echo "${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}" >> .env
-          fi
-
-      - name: Download changelog artifact
-        if: ${{ needs.setup-changelog.outputs.has_changelog == 'true' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: artifact-changelog
-          path: .
 
       - name: Publish to GitHub Packages
-        if: steps.check_github.outputs.PUBLISH_GH == 'true'
+        if: steps.check_github.outputs.publish == 'true'
         run: npm publish --registry=https://npm.pkg.github.com/
         env:
           NODE_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
       - name: Publish to NPM Registry
-        if: steps.check_npm.outputs.PUBLISH_NPM == 'true'
-        run: |
-          npm publish --access public --registry=https://registry.npmjs.org/
+        if: steps.check_npm.outputs.publish == 'true'
+        run: npm publish --access public --registry=https://registry.npmjs.org/
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Git Commit & Push Tag
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-
-          git add -u
-          if [ "${{ needs.setup-changelog.outputs.has_changelog }}" = "true" ] && [ -f CHANGELOG.md ]; then
-            git add CHANGELOG.md
-          fi
-          if ! git diff --cached --quiet; then
-            git commit -m "version: ${{ env.FULL_VERSION }}"
-          fi
-
-          git tag -a "v${{ env.FULL_VERSION }}" -m "version: ${{ env.FULL_VERSION }}"
-          git push origin HEAD:${{ env.BRANCH_NAME }}
-          git push origin "v${{ env.FULL_VERSION }}"

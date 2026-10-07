@@ -3,18 +3,13 @@ name: deploy-node
 on:
   workflow_call:
     inputs:
-      build_folder:
-        description: "Build output folder"
-        required: false
-        default: "build"
-        type: string
-      env_property:
-        description: "Environment property"
-        required: false
-        default: "VITE_APP_VERSION"
-        type: string
       version_type:
-        description: "major | minor | patch | none"
+        description: "major | minor | patch | none (keep current)"
+        required: false
+        default: "none"
+        type: string
+      explicit_version:
+        description: "Explicit version, overrides version_type"
         required: false
         type: string
       package_manager:
@@ -22,144 +17,38 @@ on:
         required: false
         default: "npm"
         type: string
-      add_branch_name:
+      check_command:
+        description: "Check command, empty skips checks"
         required: false
-        type: boolean
-        default: true
-      add_build_number:
-        required: false
-        type: boolean
-        default: true
-      add_lfs:
-        description: "Whether to setup Git LFS for large files"
-        required: false
-        type: boolean
-        default: false
-      build_runner:
-        description: "GitHub runner: ubuntu-latest | windows-latest | macos-latest"
-        required: false
-        default: "ubuntu-latest"
+        default: "check"
         type: string
-      build_command:
-        description: "Build command, defaults to build:<branch>"
+      changelog_preset:
+        description: "conventional-changelog preset, empty disables changelog"
         required: false
         default: ""
         type: string
-      run_changelog:
-        description: "Has changelog"
-        required: false
-        default: false
-        type: boolean
     secrets:
       ACCESS_GITHUB_TOKEN:
         required: true
+    outputs:
+      version:
+        description: "Released version"
+        value: ${{ jobs.setup-version.outputs.version }}
+      tag:
+        description: "Released tag"
+        value: ${{ jobs.setup-version.outputs.tag }}
+
+permissions:
+  contents: write
 
 jobs:
   setup-version:
     uses: jenesei-software/.github/.github/workflows/setup-version.yml@main
     with:
       version_type: ${{ inputs.version_type }}
-      branch_name: ${{ github.ref_name }}
-      add_branch_name: ${{ inputs.add_branch_name }}
-      add_build_number: ${{ inputs.add_build_number }}
-    secrets:
-      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-
-  setup-build:
-    needs: [setup-version]
-    uses: jenesei-software/.github/.github/workflows/setup-build.yml@main
-    with:
-      full_version: ${{ needs.setup-version.outputs.full_version }}
+      explicit_version: ${{ inputs.explicit_version }}
       package_manager: ${{ inputs.package_manager }}
-      env_property: ${{ inputs.env_property }}
-      build_folder: ${{ inputs.build_folder }}
-      build_runner: ${{ inputs.build_runner }}
-      build_command: ${{ inputs.build_command }}
+      check_command: ${{ inputs.check_command }}
+      changelog_preset: ${{ inputs.changelog_preset }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-
-  setup-changelog:
-    needs: [setup-version]
-    uses: jenesei-software/.github/.github/workflows/setup-changelog.yml@main
-    with:
-      full_version: ${{ needs.setup-version.outputs.full_version }}
-      package_manager: ${{ inputs.package_manager }}
-      run_changelog: ${{ inputs.run_changelog }}
-    secrets:
-      ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-
-  deploy:
-    needs: [setup-build, setup-version, setup-changelog]
-    runs-on: ubuntu-latest
-    env:
-      FULL_VERSION: ${{ needs.setup-version.outputs.full_version }}
-      BRANCH_NAME: ${{ github.ref_name }}
-      ENV_PROPERTY: ${{ inputs.env_property }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: artifact-build
-          path: ${{ inputs.build_folder }}
-
-      - name: Write version to package.json and .env
-        run: |
-          node -e "let p=require('./package.json'); p.version='${{ env.FULL_VERSION }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2));"
-
-          touch .env
-          if grep -q '^${{ env.ENV_PROPERTY }}=' .env; then
-            sed -i "s/^${{ env.ENV_PROPERTY }}=.*/${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}/" .env
-          else
-            echo "${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}" >> .env
-          fi
-
-      - name: Download changelog artifact
-        if: ${{ needs.setup-changelog.outputs.has_changelog == 'true' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: artifact-changelog
-          path: .
-
-      - name: Git Commit & Push Tag
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add -u
-          if [ "${{ needs.setup-changelog.outputs.has_changelog }}" = "true" ] && [ -f CHANGELOG.md ]; then
-            git add CHANGELOG.md
-          fi
-          if ! git diff --cached --quiet; then
-            git commit -m "version: ${{ env.FULL_VERSION }}"
-          fi
-          git tag -a "v${{ env.FULL_VERSION }}" -m "version: ${{ env.FULL_VERSION }}"
-          git push origin HEAD:${{ env.BRANCH_NAME }}
-          git push origin "v${{ env.FULL_VERSION }}"
-
-      - name: Setup Git LFS
-        if: ${{ inputs.add_lfs }}
-        run: |
-          git lfs install
-          git lfs track "*.dll"
-          git lfs track "*.bin"
-          git lfs track "*.exe"
-          git add .gitattributes
-
-      - name: Increase git buffer
-        run: git config --global http.postBuffer 524288000
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-          publish_branch: build_${{ env.BRANCH_NAME }}
-          publish_dir: ${{ inputs.build_folder }}
-          force_orphan: true
-          keep_files: false
