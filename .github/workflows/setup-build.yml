@@ -1,0 +1,146 @@
+name: setup-build
+
+on:
+  workflow_call:
+    inputs:
+      env_property:
+        description: "Env property the build exposes the version through"
+        default: "VITE_APP_VERSION"
+        required: false
+        type: string
+      package_manager:
+        description: "npm | yarn | bun | pnpm"
+        required: true
+        type: string
+      full_version:
+        description: "Version to expose to the build"
+        required: false
+        type: string
+      build_folder:
+        description: "Build output folder"
+        required: false
+        default: "build"
+        type: string
+      build_runner:
+        description: "GitHub runner: ubuntu-latest | windows-latest | macos-latest"
+        required: false
+        default: "ubuntu-latest"
+        type: string
+      build_command:
+        description: "Build command, defaults to build"
+        required: false
+        default: ""
+        type: string
+    secrets:
+      ACCESS_GITHUB_TOKEN:
+        required: true
+
+jobs:
+  setup-build:
+    runs-on: ${{ inputs.build_runner }}
+    env:
+      FULL_VERSION: ${{ inputs.full_version }}
+      PACKAGE_MANAGER: ${{ inputs.package_manager }}
+      ENV_PROPERTY: ${{ inputs.env_property }}
+      BUILD_FOLDER: ${{ inputs.build_folder }}
+      BUILD_COMMAND: ${{ inputs.build_command }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Setup pnpm
+        if: env.PACKAGE_MANAGER == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Bun
+        if: env.PACKAGE_MANAGER == 'bun'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup npmrc for GitHub Packages
+        shell: bash
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
+          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/yarn
+            ~/.bun/install/cache
+            ~/.pnpm-store
+          key: |
+            r1/${{ runner.os }}/${{ env.PACKAGE_MANAGER }}/deps/${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/bun.lockb', '**/pnpm-lock.yaml') }}
+          restore-keys: |
+            r1/${{ runner.os }}/${{ env.PACKAGE_MANAGER }}/deps/
+
+      - name: Install dependencies
+        shell: bash
+        env:
+          BUN_INSTALL_REGISTRY_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+          BUN_AUTH_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ~/.npmrc
+        run: |
+          case "${{ env.PACKAGE_MANAGER }}" in
+            npm)
+              npm ci
+              ;;
+            yarn)
+              corepack enable
+              yarn install --frozen-lockfile
+              ;;
+            bun)
+              bun install --frozen-lockfile
+              ;;
+            pnpm)
+              pnpm install --frozen-lockfile
+              ;;
+            *)
+              echo "Unknown package manager: ${{ env.PACKAGE_MANAGER }}"
+              exit 1
+              ;;
+          esac
+
+      - name: Build project
+        shell: bash
+        env:
+          NPM_CONFIG_USERCONFIG: ~/.npmrc
+        run: |
+          export "${{ env.ENV_PROPERTY }}=${{ env.FULL_VERSION }}"
+
+          if [ -z "${{ env.BUILD_COMMAND }}" ]; then
+            BUILD_COMMAND="build"
+          fi
+
+          echo "Building ${{ env.FULL_VERSION }} via $BUILD_COMMAND into ${{ env.BUILD_FOLDER }}"
+          case "${{ env.PACKAGE_MANAGER }}" in
+            npm)
+              npm run "$BUILD_COMMAND"
+              ;;
+            yarn)
+              yarn "$BUILD_COMMAND"
+              ;;
+            bun)
+              bun run "$BUILD_COMMAND"
+              ;;
+            pnpm)
+              pnpm run "$BUILD_COMMAND"
+              ;;
+          esac
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-build
+          path: ${{ env.BUILD_FOLDER }}

@@ -25,7 +25,7 @@ on:
       changelog_preset:
         description: "conventional-changelog preset, empty disables changelog"
         required: false
-        default: ""
+        default: "angular"
         type: string
     secrets:
       ACCESS_GITHUB_TOKEN:

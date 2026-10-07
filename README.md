@@ -6,12 +6,17 @@ Shared GitHub Actions workflows for the Jenesei Software organization.
 
 One branch (`main`), one version, one release.
 
-The pipeline does not build. It runs checks, bumps the version in `package.json`,
-commits it, tags the commit, and publishes a GitHub Release. The release carries the
-changelog and the version number, nothing else.
+For applications the pipeline does not build. It runs checks, bumps the version in
+`package.json`, commits it, tags the commit, and publishes a GitHub Release. The
+release carries the changelog and the version number, nothing else. Building an
+application is the deployment platform's job: it builds each environment from the tag
+with that environment's own variables.
 
-Building is the deployment platform's job. A release is a named point in history that
-the platform builds from, not a package it downloads.
+Libraries are different. They publish to a registry, and the registry needs the built
+artifact, so the pipeline builds them. Their release is the tag plus changelog, and
+the package contents come from the build.
+
+In both cases the release is a named point in history, not a downloadable package.
 
 Version lives in `package.json` and only ever grows. There is no branch suffix and no
 build counter, so a version stays valid semver.
@@ -21,8 +26,9 @@ build counter, so a version stays valid semver.
 | Workflow | Purpose |
 | --- | --- |
 | `setup-version.yml` | Runs checks, bumps the version, commits, tags, publishes the GitHub Release |
-| `deploy-node.yml` | Applications: calls `setup-version.yml` |
-| `deploy-library.yml` | Libraries: the same, plus `npm publish` to GitHub Packages and/or npmjs.org |
+| `setup-build.yml` | Installs dependencies, runs the build with the version exposed as an env property, uploads the artifact |
+| `deploy-node.yml` | Applications: checks and release, no build |
+| `deploy-library.yml` | Libraries: the same, plus a build and `npm publish` to GitHub Packages and/or npmjs.org |
 | `setup-readme-versions.yml` | Replaces the `## 🚀 ACTUAL VERSIONS` README block with the latest tag |
 
 ## Usage
@@ -40,7 +46,8 @@ jobs:
       ACCESS_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-Libraries call `deploy-library.yml` instead and pass `registry_type`.
+Libraries call `deploy-library.yml` instead and pass `registry_type`. They may also
+pass `build_folder` and `build_command`; the build output is what npm publishes.
 
 ### Inputs
 
