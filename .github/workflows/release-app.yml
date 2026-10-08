@@ -26,6 +26,11 @@ on:
         description: "conventional-changelog preset, empty disables changelog"
         required: false
         default: "angular"
+        github_packages_scope:
+          description: "Route the @jenesei-software scope to GitHub Packages instead of npmjs.org"
+          required: false
+          default: "false"
+          type: string
         type: string
     secrets:
       ACCESS_GITHUB_TOKEN:
@@ -51,5 +56,6 @@ jobs:
       package_manager: ${{ inputs.package_manager }}
       check_command: ${{ inputs.check_command }}
       changelog_preset: ${{ inputs.changelog_preset }}
+      github_packages_scope: ${{ inputs.github_packages_scope }}
     secrets:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}

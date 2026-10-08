@@ -31,6 +31,11 @@ on:
         required: false
         default: ""
         type: string
+      github_packages_scope:
+        description: "Route the @jenesei-software scope to GitHub Packages instead of npmjs.org"
+        required: false
+        default: "false"
+        type: string
     secrets:
       ACCESS_GITHUB_TOKEN:
         required: true
@@ -73,7 +78,9 @@ jobs:
         shell: bash
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.ACCESS_GITHUB_TOKEN }}" > ~/.npmrc
-          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+          if [ "${{ inputs.github_packages_scope }}" = "true" ]; then
+            echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+          fi
 
       - name: Cache dependencies
         uses: actions/cache@v4
