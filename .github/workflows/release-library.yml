@@ -50,10 +50,10 @@ on:
     outputs:
       version:
         description: "Released version"
-        value: ${{ needs.release.outputs.version }}
+        value: ${{ jobs.release.outputs.version }}
       tag:
         description: "Released tag"
-        value: ${{ needs.release.outputs.tag }}
+        value: ${{ jobs.release.outputs.tag }}
 
 permissions:
   packages: read
