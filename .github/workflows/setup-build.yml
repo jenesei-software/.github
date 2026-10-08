@@ -35,6 +35,9 @@ on:
       ACCESS_GITHUB_TOKEN:
         required: true
 
+permissions:
+  packages: read
+
 jobs:
   setup-build:
     runs-on: ${{ inputs.build_runner }}

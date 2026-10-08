@@ -1,4 +1,4 @@
-name: deploy-node
+name: release-app
 
 on:
   workflow_call:
@@ -33,17 +33,18 @@ on:
     outputs:
       version:
         description: "Released version"
-        value: ${{ jobs.setup-version.outputs.version }}
+        value: ${{ needs.release.outputs.version }}
       tag:
         description: "Released tag"
-        value: ${{ jobs.setup-version.outputs.tag }}
+        value: ${{ needs.release.outputs.tag }}
 
 permissions:
+  packages: read
   contents: write
 
 jobs:
-  setup-version:
-    uses: jenesei-software/.github/.github/workflows/setup-version.yml@main
+  release:
+    uses: jenesei-software/.github/.github/workflows/setup-release.yml@main
     with:
       version_type: ${{ inputs.version_type }}
       explicit_version: ${{ inputs.explicit_version }}

@@ -1,4 +1,4 @@
-name: deploy-library
+name: release-library
 
 on:
   workflow_call:
@@ -50,17 +50,18 @@ on:
     outputs:
       version:
         description: "Released version"
-        value: ${{ jobs.setup-version.outputs.version }}
+        value: ${{ needs.release.outputs.version }}
       tag:
         description: "Released tag"
-        value: ${{ jobs.setup-version.outputs.tag }}
+        value: ${{ needs.release.outputs.tag }}
 
 permissions:
+  packages: read
   contents: write
 
 jobs:
-  setup-version:
-    uses: jenesei-software/.github/.github/workflows/setup-version.yml@main
+  release:
+    uses: jenesei-software/.github/.github/workflows/setup-release.yml@main
     with:
       version_type: ${{ inputs.version_type }}
       explicit_version: ${{ inputs.explicit_version }}
@@ -71,10 +72,10 @@ jobs:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   setup-build:
-    needs: [setup-version]
+    needs: [release]
     uses: jenesei-software/.github/.github/workflows/setup-build.yml@main
     with:
-      full_version: ${{ needs.setup-version.outputs.version }}
+      full_version: ${{ needs.release.outputs.version }}
       package_manager: ${{ inputs.package_manager }}
       build_folder: ${{ inputs.build_folder }}
       build_command: ${{ inputs.build_command }}
@@ -82,10 +83,10 @@ jobs:
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
 
   publish:
-    needs: [setup-version, setup-build]
+    needs: [release, setup-build]
     runs-on: ubuntu-latest
     env:
-      VERSION: ${{ needs.setup-version.outputs.version }}
+      VERSION: ${{ needs.release.outputs.version }}
       REGISTRY_TYPE: ${{ inputs.registry_type }}
       ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -93,7 +94,7 @@ jobs:
       - name: Checkout released commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.setup-version.outputs.sha }}
+          ref: ${{ needs.release.outputs.sha }}
 
       - name: Download build artifact
         uses: actions/download-artifact@v4

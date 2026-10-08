@@ -1,4 +1,4 @@
-name: setup-version
+name: setup-release
 
 on:
   workflow_call:
@@ -33,19 +33,20 @@ on:
     outputs:
       version:
         description: "Released version"
-        value: ${{ jobs.setup-version.outputs.version }}
+        value: ${{ jobs.release.outputs.version }}
       tag:
         description: "Released tag"
-        value: ${{ jobs.setup-version.outputs.tag }}
+        value: ${{ jobs.release.outputs.tag }}
       sha:
         description: "Commit the release points at"
-        value: ${{ jobs.setup-version.outputs.sha }}
+        value: ${{ jobs.release.outputs.sha }}
 
 permissions:
+  packages: read
   contents: write
 
 jobs:
-  setup-version:
+  release:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.bump.outputs.version }}
