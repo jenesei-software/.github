@@ -51,7 +51,7 @@ jobs:
     outputs:
       version: ${{ steps.bump.outputs.version }}
       tag: ${{ steps.bump.outputs.tag }}
-      sha: ${{ steps.bump.outputs.sha }}
+      sha: ${{ steps.commit.outputs.sha }}
     env:
       PACKAGE_MANAGER: ${{ inputs.package_manager }}
       CHECK_COMMAND: ${{ inputs.check_command }}
@@ -118,12 +118,7 @@ jobs:
             echo "::warning::No '${{ inputs.check_command }}' script, skipping checks"
           fi
 
-      - name: Generate changelog
-        if: inputs.changelog_preset != ''
-        run: npx --yes conventional-changelog-cli -p "$CHANGELOG_PRESET" -i CHANGELOG.md -s
-        continue-on-error: true
-
-      - name: Bump version
+      - name: Resolve version
         id: bump
         run: |
           CURRENT=$(node -p "require('./package.json').version")
@@ -154,14 +149,25 @@ jobs:
           fi
 
           echo "Releasing $TAG (was $CURRENT, branch $BRANCH_NAME)"
-  
-            if [ "$VERSION" = "$CURRENT" ]; then
-              echo "Version already $CURRENT, skipping npm version"
-            else
-              npm version "$VERSION" --no-git-tag-version
-            fi
-  
-            git add package.json
+
+          if [ "$VERSION" = "$CURRENT" ]; then
+            echo "Version already $CURRENT, leaving package.json as is"
+          else
+            npm version "$VERSION" --no-git-tag-version
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        if: inputs.changelog_preset != ''
+        run: npx --yes conventional-changelog-cli -p "$CHANGELOG_PRESET" -i CHANGELOG.md -s
+        continue-on-error: true
+
+      - name: Commit release
+        id: commit
+        run: |
+          git add package.json
           [ -f CHANGELOG.md ] && git add CHANGELOG.md || true
 
           if git diff --cached --quiet; then
@@ -169,12 +175,10 @@ jobs:
           else
             git config --local user.email "github-actions[bot]@users.noreply.github.com"
             git config --local user.name "github-actions[bot]"
-            git commit -m "chore(release): $TAG"
+            git commit -m "chore(release): ${{ steps.bump.outputs.tag }}"
             git push origin "HEAD:$BRANCH_NAME"
           fi
 
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
@@ -184,11 +188,11 @@ jobs:
           if [ -f CHANGELOG.md ]; then
             gh release create "${{ steps.bump.outputs.tag }}" \
               --title "${{ steps.bump.outputs.tag }}" \
-              --target "${{ steps.bump.outputs.sha }}" \
+              --target "${{ steps.commit.outputs.sha }}" \
               --notes-file CHANGELOG.md
           else
             gh release create "${{ steps.bump.outputs.tag }}" \
               --title "${{ steps.bump.outputs.tag }}" \
-              --target "${{ steps.bump.outputs.sha }}" \
+              --target "${{ steps.commit.outputs.sha }}" \
               --generate-notes
           fi
