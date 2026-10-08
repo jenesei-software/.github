@@ -59,8 +59,9 @@ jobs:
       - name: Setup pnpm
         if: env.PACKAGE_MANAGER == 'pnpm'
         uses: pnpm/action-setup@v4
-        with:
-          version: latest
+        # No version input on purpose. The action reads packageManager from
+        # package.json, and passing version as well makes it fail with
+        # "Multiple versions of pnpm specified".
 
       - name: Setup Bun
         if: env.PACKAGE_MANAGER == 'bun'
