@@ -25,20 +25,25 @@ build counter, so a version stays valid semver.
 
 | Workflow | Purpose |
 | --- | --- |
-| `setup-version.yml` | Runs checks, bumps the version, commits, tags, publishes the GitHub Release |
-| `setup-build.yml` | Installs dependencies, runs the build with the version exposed as an env property, uploads the artifact |
-| `deploy-node.yml` | Applications: checks and release, no build |
-| `deploy-library.yml` | Libraries: the same, plus a build and `npm publish` to GitHub Packages and/or npmjs.org |
+| `setup-release.yml` | Shared step: runs checks, bumps the version, commits, tags, publishes the GitHub Release |
+| `setup-build.yml` | Installs dependencies, runs the build, uploads the artifact |
+| `release-app.yml` | Applications: checks and release, no build |
+| `release-library.yml` | Libraries: the same, plus a build and `npm publish` to GitHub Packages and/or npmjs.org |
 | `setup-readme-versions.yml` | Replaces the `## 🚀 ACTUAL VERSIONS` README block with the latest tag |
+
+Nothing here deploys. The names say `release` because that is all they do.
+
+Storybook is not here. It publishes to GitHub Pages, so each repository keeps its own
+`deploy-storybook.yml` alongside its code.
 
 ## Usage
 
-Applications call `deploy-node.yml` from `workflow_dispatch`:
+Applications call `release-app.yml` from `workflow_dispatch`:
 
 ```yaml
 jobs:
   release:
-    uses: jenesei-software/.github/.github/workflows/deploy-node.yml@main
+    uses: jenesei-software/.github/.github/workflows/release-app.yml@main
     with:
       version_type: patch
       package_manager: npm
@@ -46,8 +51,12 @@ jobs:
       ACCESS_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-Libraries call `deploy-library.yml` instead and pass `registry_type`. They may also
+Libraries call `release-library.yml` instead and pass `registry_type`. They may also
 pass `build_folder` and `build_command`; the build output is what npm publishes.
+
+The caller file can carry the same name as the shared workflow, so an application ends
+up with `.github/workflows/release-app.yml` that calls
+`jenesei-software/.github/.github/workflows/release-app.yml@main`.
 
 ### Inputs
 
@@ -68,16 +77,56 @@ can opt in by adding a single `check` script.
 `conventionalcommits`. Empty disables changelog generation and the release falls back
 to GitHub's own generated notes.
 
+`registry_type` is `npm`, `github` or `all`, and defaults to `github`. When `NPM_TOKEN`
+is empty the npmjs.org step is skipped with a warning and GitHub Packages still
+publishes.
+
+### Outputs
+
+`release-app.yml` and `release-library.yml` expose `version` and `tag` so a caller can
+use them in later jobs.
+
+Declare them with the `jobs` context, not `needs`:
+
+```yaml
+on:
+  workflow_call:
+    outputs:
+      version:
+        value: ${{ jobs.release.outputs.version }}
+```
+
+The `workflow_call` outputs block has no access to `needs`. Inside a job, where the
+`needs` context exists, `needs.release.outputs.version` is the correct form.
+
+## Permissions
+
+A workflow that declares `permissions:` loses every scope it does not list. Anything
+reading from GitHub Packages therefore needs it spelled out:
+
+```yaml
+permissions:
+  packages: read
+  contents: write
+```
+
+Without `packages: read`, an install step fails with
+`403 Permission installation not allowed to Read organization package`.
+
 ## Checks
 
 Every repository exposes the same command:
 
 ```json
-"check": "biome check --no-unsafe-fixes src && tsc --noEmit"
+"check": "biome check src && tsc -p tsconfig.json"
 ```
 
-Biome runs first because it is cheap, TypeScript second because it is not. The
-`--no-unsafe-fixes` flag guarantees the check never rewrites files.
+Biome runs first because it is cheap, TypeScript second because it is not. Some
+repositories check a different path set or use `tsc --noEmit`; the workflow only
+cares that the script exists and exits zero.
+
+A repository without a `check` script is skipped with a warning, so opting in is a
+single line.
 
 ## Environment
 
@@ -86,6 +135,14 @@ environment configures its own values when it builds.
 
 Repositories document the required keys in `.env.template` and gitignore real `.env`
 files. The pipeline never needs them.
+
+Applications expose their version to the frontend by reading `package.json` at build
+time, not through a pipeline-supplied variable. Vite injects it as `__APP_VERSION__`.
+
+`setup-build.yml` still exports `env_property` during the build, defaulting to
+`VITE_APP_VERSION`, but no library reads it: a library's version comes from
+`package.json` at install time. It is dead weight left from the era when applications
+were built here.
 
 ## What this replaces
 
