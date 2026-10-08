@@ -41,11 +41,11 @@ on:
         description: "conventional-changelog preset, empty disables changelog"
         required: false
         default: "angular"
-        github_packages_scope:
-          description: "Route the @jenesei-software scope to GitHub Packages instead of npmjs.org"
-          required: false
-          default: "false"
-          type: string
+        type: string
+      github_packages_scope:
+        description: "Route the @jenesei-software scope to GitHub Packages instead of npmjs.org"
+        required: false
+        default: "false"
         type: string
     secrets:
       NPM_TOKEN:
