@@ -15,7 +15,7 @@ on:
       registry_type:
         description: "npm | github | all"
         required: false
-        default: "github"
+        default: "all"
         type: string
       package_manager:
         description: "npm | yarn | bun | pnpm"
@@ -112,7 +112,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "24.x"
           registry-url: https://registry.npmjs.org
 
       - name: Configure npm for GitHub Packages

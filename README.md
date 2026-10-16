@@ -25,11 +25,10 @@ build counter, so a version stays valid semver.
 
 | Workflow | Purpose |
 | --- | --- |
-| `setup-release.yml` | Shared step: runs checks, bumps the version, commits, tags, publishes the GitHub Release |
+| `setup-release.yml` | Shared step: runs checks, bumps the version, rewrites the `## 🚀 ACTUAL VERSIONS` README block, commits, tags, publishes the GitHub Release |
 | `setup-build.yml` | Installs dependencies, runs the build, uploads the artifact |
 | `release-app.yml` | Applications: checks and release, no build |
 | `release-library.yml` | Libraries: the same, plus a build and `npm publish` to GitHub Packages and/or npmjs.org |
-| `setup-readme-versions.yml` | Replaces the `## 🚀 ACTUAL VERSIONS` README block with the latest tag |
 
 Nothing here deploys. The names say `release` because that is all they do.
 
@@ -127,6 +126,24 @@ cares that the script exists and exits zero.
 
 A repository without a `check` script is skipped with a warning, so opting in is a
 single line.
+
+## README versions
+
+`setup-release.yml` rewrites the `## 🚀 ACTUAL VERSIONS` block in `README.md` as part of
+the release commit, so the block always shows the released tag. Keep the block in the
+README: the workflow replaces it in place and inserts it at the top when it is missing.
+
+## Node
+
+The baseline is Node 24.x. The shared workflows install `24.x` and every repository pins
+the same version in `.nvmrc`.
+
+## Repository conventions
+
+Organization-wide files live here and are copied into each repository verbatim:
+`.gitattributes`, `.editorconfig`, `.agents/rules/git-commits.md`, `.vscode/settings.json`.
+See the wiki page `Repository-Conventions` for the full list and for the `.npmrc`,
+`check` script and `github_packages_scope` requirements.
 
 ## Environment
 

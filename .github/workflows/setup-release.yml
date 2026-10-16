@@ -73,7 +73,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "24.x"
 
       - name: Setup pnpm
         if: env.PACKAGE_MANAGER == 'pnpm'
@@ -172,11 +172,43 @@ jobs:
         run: npx --yes conventional-changelog-cli -p "$CHANGELOG_PRESET" -i CHANGELOG.md -s
         continue-on-error: true
 
+      - name: Update README version block
+        run: |
+          VERSION="${{ steps.bump.outputs.version }}"
+
+          if [ ! -f README.md ]; then
+            echo "No README.md, skipping"
+            exit 0
+          fi
+
+          {
+            printf '## 🚀 ACTUAL VERSIONS\n\n'
+            printf -- '- `%s`\n\n' "$VERSION"
+          } > block.tmp
+
+          if grep -q '^## 🚀 ACTUAL VERSIONS' README.md; then
+            awk '
+              /^## 🚀 ACTUAL VERSIONS/ {
+                while ((getline line < "block.tmp") > 0) print line
+                skipping = 1
+                next
+              }
+              skipping && /^## / { skipping = 0 }
+              !skipping { print }
+            ' README.md > README.tmp
+          else
+            cat block.tmp README.md > README.tmp
+          fi
+
+          rm -f block.tmp
+          mv README.tmp README.md
+
       - name: Commit release
         id: commit
         run: |
           git add package.json
           [ -f CHANGELOG.md ] && git add CHANGELOG.md || true
+          [ -f README.md ] && git add README.md || true
 
           if git diff --cached --quiet; then
             echo "Nothing to commit, tag will point at the current commit"
