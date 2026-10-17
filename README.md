@@ -29,8 +29,50 @@ build counter, so a version stays valid semver.
 | `setup-build.yml` | Installs dependencies, runs the build, uploads the artifact |
 | `release-app.yml` | Applications: checks and release, no build |
 | `release-library.yml` | Libraries: the same, plus a build and `npm publish` to GitHub Packages and/or npmjs.org |
+| `deploy-coolify.yml` | Optional: queues a deployment for one Coolify resource and waits for its result |
 
-Nothing here deploys. The names say `release` because that is all they do.
+Release workflows do not deploy. The names say `release` because that is all they do.
+`deploy-coolify.yml` is a separate building block that a repository chains after its release
+when the deployment platform is Coolify.
+
+## Deployment with Coolify
+
+A repository that runs on Coolify adds a second job to its caller workflow:
+
+```yaml
+jobs:
+  release:
+    uses: jenesei-software/.github/.github/workflows/release-app.yml@main
+    with:
+      version_type: patch
+    secrets:
+      ACCESS_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy:
+    needs: release
+    uses: jenesei-software/.github/.github/workflows/deploy-coolify.yml@main
+    with:
+      app_uuid: <coolify-resource-uuid>
+      release_tag: ${{ needs.release.outputs.tag }}
+    secrets:
+      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+```
+
+`COOLIFY_TOKEN` is an organization secret holding a Coolify API token with the `read` and
+`deploy` abilities. The token is team-scoped, so it can deploy every resource of that team;
+treat it as a production credential and rotate it when someone leaves.
+
+The workflow calls `POST /api/v1/deploy?uuid=<uuid>&force=<bool>`, then polls
+`GET /api/v1/deployments/<deployment-uuid>` until the deployment finishes, fails, or the
+timeout expires. A failed deployment fails the workflow instead of leaving a green run
+behind a broken site.
+
+Turn **Auto deploy** off for that application in Coolify (Advanced → Deployment), otherwise
+every push to the branch deploys as well and a release deploys twice. The release commit is
+the last commit of the run, so Coolify builds exactly that commit.
+
+A repository can also keep a manual `deploy.yml` with `workflow_dispatch` for a redeploy
+without a new release; pass `force: true` when the commit did not change.
 
 Storybook is not here. It publishes to GitHub Pages, so each repository keeps its own
 `deploy-storybook.yml` alongside its code.

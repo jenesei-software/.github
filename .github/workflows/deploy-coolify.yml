@@ -1,0 +1,117 @@
+name: deploy-coolify
+
+on:
+  workflow_call:
+    inputs:
+      app_uuid:
+        description: "Coolify application or service UUID to deploy"
+        required: true
+        type: string
+      base_url:
+        description: "Coolify instance URL"
+        required: false
+        default: "https://coolify.jenesei.ru"
+        type: string
+      release_tag:
+        description: "Tag or version shown in the job summary"
+        required: false
+        default: ""
+        type: string
+      force:
+        description: "Rebuild without cache"
+        required: false
+        default: false
+        type: boolean
+      wait:
+        description: "Wait for the deployment result instead of only queueing it"
+        required: false
+        default: true
+        type: boolean
+      timeout_minutes:
+        description: "How long to wait for the deployment"
+        required: false
+        default: 15
+        type: number
+    secrets:
+      COOLIFY_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Coolify deployment
+        id: trigger
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          APP_UUID: ${{ inputs.app_uuid }}
+          FORCE: ${{ inputs.force }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+
+          response=$(curl -fsS -X POST \
+            "$BASE_URL/api/v1/deploy?uuid=$APP_UUID&force=$FORCE" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN" \
+            -H "Accept: application/json")
+
+          echo "$response" | jq .
+
+          deployment=$(echo "$response" | jq -r '.deployments[0].deployment_uuid // empty')
+          message=$(echo "$response" | jq -r '.deployments[0].message // empty')
+
+          if [ -z "$deployment" ]; then
+            echo "::error::Coolify did not queue a deployment: ${message:-no details}"
+            exit 1
+          fi
+
+          echo "deployment=$deployment" >> "$GITHUB_OUTPUT"
+          echo "Deployment queued: $deployment"
+
+          if [ -n "$RELEASE_TAG" ]; then
+            echo "### Deployed $RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+            echo "Deployment: \`$deployment\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Wait for Coolify deployment
+        if: inputs.wait
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          DEPLOYMENT: ${{ steps.trigger.outputs.deployment }}
+          TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
+        run: |
+          set -euo pipefail
+
+          deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+
+          while :; do
+            status=$(curl -fsS \
+              "$BASE_URL/api/v1/deployments/$DEPLOYMENT" \
+              -H "Authorization: Bearer $COOLIFY_TOKEN" \
+              -H "Accept: application/json" | jq -r '.status')
+
+            echo "Deployment $DEPLOYMENT: $status"
+
+            case "$status" in
+              finished)
+                echo "Deployment finished."
+                exit 0
+                ;;
+              failed|cancelled*)
+                echo "::error::Deployment $DEPLOYMENT ended with status: $status"
+                exit 1
+                ;;
+            esac
+
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Deployment $DEPLOYMENT did not finish within $TIMEOUT_MINUTES minutes"
+              exit 1
+            fi
+
+            sleep 10
+          done
