@@ -1,4 +1,4 @@
-﻿name: deploy-coolify
+name: deploy-coolify
 
 on:
   workflow_call:
