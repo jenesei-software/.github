@@ -58,9 +58,11 @@ jobs:
       COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
 ```
 
-`COOLIFY_TOKEN` is an organization secret holding a Coolify API token with the `read` and
-`deploy` abilities. The token is team-scoped, so it can deploy every resource of that team;
-treat it as a production credential and rotate it when someone leaves.
+`COOLIFY_TOKEN` is a repository or organization secret holding a Coolify API token with the
+`read` and `deploy` abilities. Organization secrets reach public repositories on the free plan;
+private repositories need the secret on the repository itself. The token is team-scoped, so it
+can deploy every resource of that team; treat it as a production credential and rotate it when
+someone leaves.
 
 The workflow calls `POST /api/v1/deploy?uuid=<uuid>&force=<bool>`, then polls
 `GET /api/v1/deployments/<deployment-uuid>` until the deployment finishes, fails, or the
