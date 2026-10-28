@@ -123,8 +123,8 @@ jobs:
             exit 1
           fi
           NPMRC="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
-          echo "//npm.pkg.github.com/:_authToken=$ACCESS_GITHUB_TOKEN" >> "$NPMRC"
-          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> "$NPMRC"
+          printf '\n//npm.pkg.github.com/:_authToken=%s\n' "$ACCESS_GITHUB_TOKEN" >> "$NPMRC"
+          printf '@jenesei-software:registry=https://npm.pkg.github.com/\n' >> "$NPMRC"
 
       - name: Check GitHub Packages version
         id: check_github
