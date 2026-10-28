@@ -122,7 +122,9 @@ jobs:
             echo "::error::ACCESS_GITHUB_TOKEN is empty; GitHub Packages publish needs a token with packages: write."
             exit 1
           fi
-          echo "//npm.pkg.github.com/:_authToken=$ACCESS_GITHUB_TOKEN" >> ~/.npmrc
+          NPMRC="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          echo "//npm.pkg.github.com/:_authToken=$ACCESS_GITHUB_TOKEN" >> "$NPMRC"
+          echo "@jenesei-software:registry=https://npm.pkg.github.com/" >> "$NPMRC"
 
       - name: Check GitHub Packages version
         id: check_github
