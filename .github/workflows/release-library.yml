@@ -61,7 +61,7 @@ on:
         value: ${{ jobs.release.outputs.tag }}
 
 permissions:
-  packages: read
+  packages: write
   contents: write
 
 jobs:
@@ -117,7 +117,12 @@ jobs:
 
       - name: Configure npm for GitHub Packages
         if: inputs.registry_type == 'github' || inputs.registry_type == 'all'
-        run: echo "//npm.pkg.github.com/:_authToken=$ACCESS_GITHUB_TOKEN" >> ~/.npmrc
+        run: |
+          if [ -z "$ACCESS_GITHUB_TOKEN" ]; then
+            echo "::error::ACCESS_GITHUB_TOKEN is empty; GitHub Packages publish needs a token with packages: write."
+            exit 1
+          fi
+          echo "//npm.pkg.github.com/:_authToken=$ACCESS_GITHUB_TOKEN" >> ~/.npmrc
 
       - name: Check GitHub Packages version
         id: check_github
